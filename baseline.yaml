@@ -1,0 +1,65 @@
+# Baseline thresholds for DayStatus scoring
+# green: metric in normal range
+# yellow: below acceptable, needs attention
+# red: critical
+
+hrv:
+  green_min: 45
+  yellow_min: 35
+  red_min: 25
+
+sleep_score:
+  green_min: 75
+  yellow_min: 60
+  red_min: 40
+
+sleep_duration_min:
+  green_min: 390   # 6.5h
+  yellow_min: 300  # 5h
+  red_min: 240     # 4h
+
+deep_sleep_pct:
+  green_min: 15.0
+  yellow_min: 10.0
+  red_min: 5.0
+
+rhr:
+  green_max: 65
+  yellow_max: 75
+  red_max: 85
+
+body_battery:
+  green_min: 70
+  yellow_min: 50
+  red_min: 30
+
+training_readiness:
+  green_min: 70
+  yellow_min: 50
+  red_min: 30
+
+spo2:
+  green_min: 95.0
+  yellow_min: 93.0
+  red_min: 90.0
+
+stress:
+  green_max: 40
+  yellow_max: 60
+  red_max: 80
+
+# Helio-specific
+helio_readiness:
+  green_min: 70
+  yellow_min: 50
+  red_min: 30
+
+helio_physical:
+  green_min: 70
+  yellow_min: 50
+  red_min: 30
+
+helio_mental:
+  green_min: 70
+  yellow_min: 50
+  red_min: 30

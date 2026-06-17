@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Утренний бриф — {{ date }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      padding: 16px;
+      min-height: 100vh;
+    }
+    .container { max-width: 640px; margin: 0 auto; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #2d3748;
+    }
+    .header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: {{ status_color }};
+      color: #fff;
+    }
+
+    .narrative {
+      background: #1a1f2e;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      line-height: 1.65;
+      color: #cbd5e1;
+    }
+    .narrative p { margin-bottom: 10px; }
+    .narrative p:last-child { margin-bottom: 0; }
+
+    .card {
+      background: #1a1f2e;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      background: #0f1117;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .metric-label { font-size: 0.7rem; color: #64748b; margin-bottom: 4px; }
+    .metric-value { font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
+    .metric-unit { font-size: 0.75rem; color: #94a3b8; margin-left: 2px; }
+
+    .food-row, .task-row, .event-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid #2d3748;
+      font-size: 0.875rem;
+    }
+    .food-row:last-child, .task-row:last-child, .event-row:last-child { border-bottom: none; }
+    .kcal { color: #94a3b8; font-size: 0.8rem; }
+    .priority-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .p1 { background: #ef4444; }
+    .p2 { background: #f97316; }
+    .p3 { background: #eab308; }
+    .p4 { background: #6b7280; }
+
+    .weather-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .weather-period {
+      background: #0f1117;
+      border-radius: 8px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .weather-period .period-label {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .weather-period .temp { font-size: 1.3rem; font-weight: 700; color: #f1f5f9; }
+    .weather-period .condition { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+    .weather-period .wind { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+
+    .status-reasons {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+    .status-reasons span { display: block; margin-bottom: 4px; }
+    .section-empty { color: #475569; font-size: 0.85rem; font-style: italic; }
+
+    @media (max-width: 480px) {
+      .weather-grid { grid-template-columns: 1fr; }
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div><h1>☀️ Утренний бриф — {{ date }}</h1></div>
+    <div class="badge">{{ status_emoji }} {{ status.status.upper() }}</div>
+  </div>
+
+  {% if narrative %}
+  <div class="narrative">
+    {% for paragraph in narrative.split('\n\n') %}
+    <p>{{ paragraph }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if status.reasons %}
+  <div class="status-reasons">
+    {% for reason in status.reasons %}
+    <span>{{ reason }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if garmin %}
+  <div class="card">
+    <div class="card-title">😴 Сон + ❤️ Кардио</div>
+    <div class="metrics-grid">
+      <div class="metric">
+        <div class="metric-label">Sleep Score</div>
+        <div class="metric-value">{{ garmin.sleep_score or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Сон</div>
+        <div class="metric-value">
+          {% if garmin.sleep_duration_min %}{{ (garmin.sleep_duration_min / 60)|round(1) }}{% else %}—{% endif %}
+          <span class="metric-unit">ч</span>
+        </div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Deep Sleep</div>
+        <div class="metric-value">{{ garmin.deep_sleep_pct or '—' }}<span class="metric-unit">%</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">HRV</div>
+        <div class="metric-value">{{ garmin.hrv or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">RHR</div>
+        <div class="metric-value">{{ garmin.rhr or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Body Battery</div>
+        <div class="metric-value">{{ garmin.body_battery or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Recovery</div>
+        <div class="metric-value">{{ garmin.training_readiness or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">SpO2</div>
+        <div class="metric-value">{{ garmin.spo2 or '—' }}<span class="metric-unit">%</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Stress</div>
+        <div class="metric-value">{{ garmin.stress or '—' }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if helio %}
+  <div class="card">
+    <div class="card-title">🔋 Helio</div>
+    <div class="metrics-grid">
+      <div class="metric">
+        <div class="metric-label">Readiness</div>
+        <div class="metric-value">{{ helio.readiness or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Physical</div>
+        <div class="metric-value">{{ helio.physical or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Mental</div>
+        <div class="metric-value">{{ helio.mental or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">HRV Score</div>
+        <div class="metric-value">{{ helio.hrv_score or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Sleep HRV</div>
+        <div class="metric-value">{{ helio.sleep_hrv or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">RHR</div>
+        <div class="metric-value">{{ helio.rhr or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Steps</div>
+        <div class="metric-value">{{ helio.steps or '—' }}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">kcal</div>
+        <div class="metric-value">{{ helio.kcal or '—' }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if food %}
+  <div class="card">
+    <div class="card-title">🍽️ Еда вчера</div>
+    {% if total_kcal %}
+    <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 8px;">
+      Итого: {{ total_kcal }} ккал
+      | Б: {{ total_protein }}г | Ж: {{ total_fat }}г | У: {{ total_carbs }}г
+    </div>
+    {% endif %}
+    {% for entry in food %}
+    <div class="food-row">
+      <span>{{ entry.meal_name }}</span>
+      <span class="kcal">{{ entry.kcal }} ккал</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if weather %}
+  <div class="card">
+    <div class="card-title">🌤 Погода сегодня</div>
+    <div class="weather-grid">
+      {% for w in weather %}
+      <div class="weather-period">
+        <div class="period-label">{{ w.period }}</div>
+        <div class="temp">{% if w.temp %}{{ w.temp }}°{% else %}—{% endif %}</div>
+        <div class="condition">{{ w.condition or '' }}</div>
+        <div class="wind">{% if w.wind %}{{ w.wind }} м/с{% else %}—{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if calendar %}
+  <div class="card">
+    <div class="card-title">📅 Календарь сегодня</div>
+    {% for event in calendar %}
+    <div class="event-row">
+      <span>{{ event.title }}</span>
+      <span style="color: #64748b; font-size: 0.8rem;">
+        {{ event.start_time or '' }}{% if event.duration_minutes %} · {{ event.duration_minutes }} мин{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if tasks %}
+  <div class="card">
+    <div class="card-title">✅ Задачи на сегодня</div>
+    {% for t in tasks[:10] %}
+    <div class="task-row">
+      <span>
+        <span class="priority-dot p{{ t.priority }}"></span>
+        {{ t.title }}
+      </span>
+      <span style="color: #64748b; font-size: 0.75rem;">p{{ t.priority }}</span>
+    </div>
+    {% endfor %}
+    {% if tasks|length > 10 %}
+    <div style="color: #475569; font-size: 0.8rem; margin-top: 6px;">+{{ tasks|length - 10 }} ещё</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+</body>
+</html>

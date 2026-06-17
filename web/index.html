@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Утренний бриф — 2026-06-17</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      padding: 16px;
+      min-height: 100vh;
+    }
+    .container { max-width: 640px; margin: 0 auto; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #2d3748;
+    }
+    .header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: #6b7280;
+      color: #fff;
+    }
+
+    .narrative {
+      background: #1a1f2e;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      line-height: 1.65;
+      color: #cbd5e1;
+    }
+    .narrative p { margin-bottom: 10px; }
+    .narrative p:last-child { margin-bottom: 0; }
+
+    .card {
+      background: #1a1f2e;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      background: #0f1117;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .metric-label { font-size: 0.7rem; color: #64748b; margin-bottom: 4px; }
+    .metric-value { font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
+    .metric-unit { font-size: 0.75rem; color: #94a3b8; margin-left: 2px; }
+
+    .food-row, .task-row, .event-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid #2d3748;
+      font-size: 0.875rem;
+    }
+    .food-row:last-child, .task-row:last-child, .event-row:last-child { border-bottom: none; }
+    .kcal { color: #94a3b8; font-size: 0.8rem; }
+    .priority-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .p1 { background: #ef4444; }
+    .p2 { background: #f97316; }
+    .p3 { background: #eab308; }
+    .p4 { background: #6b7280; }
+
+    .weather-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .weather-period {
+      background: #0f1117;
+      border-radius: 8px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .weather-period .period-label {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .weather-period .temp { font-size: 1.3rem; font-weight: 700; color: #f1f5f9; }
+    .weather-period .condition { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+    .weather-period .wind { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+
+    .status-reasons {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+    .status-reasons span { display: block; margin-bottom: 4px; }
+    .section-empty { color: #475569; font-size: 0.85rem; font-style: italic; }
+
+    @media (max-width: 480px) {
+      .weather-grid { grid-template-columns: 1fr; }
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div><h1>☀️ Утренний бриф — 2026-06-17</h1></div>
+    <div class="badge">⚪ GREY</div>
+  </div>
+
+  
+  <div class="narrative">
+    
+    <p><think>
+Пользователь просит написать утренний бриф о здоровье, но данные за вчерашний день полностью пустые (все значения — или "нет данных"). </p>
+    
+    <p>Это интересная ситуация — нужно написать бриф, когда нет данных для анализа. Нужно:
+1. Мягко отметить, что данных нет
+2. Быть дружелюбным и поддерживающим
+3. Дать 1-2 совета
+4. Упомянуть конкретные цифры — но какие? Раз данных нет, можно сказать что-то вроде "пока данных нет" или "данные не загрузились"
+5. Упомянуть 46 задач на сегодня</p>
+    
+    <p>Пишу в дружелюбном тоне, 3-4 абзаца.
+</think></p>
+    
+    <p>Доброе утро! ☀️</p>
+    
+    <p>Смотрю на твои вчерашние данные — и вижу сплошные прочерки. Ни сна, ни пульса, ни уровня стресса — Garmin словно взял выходной. Такое бывает: иногда браслет теряет связь, разряжается или просто не успевает синхронизироваться. Ничего страшного, но сегодня стоит убедиться, что всё на месте и данные появятся к завтрашнему утру.</p>
+    
+    <p>Body Battery тоже пустой, Recovery Score неизвестен. Это значит, что вчерашний день прошёл без отслеживания — а ведь ты мог устать больше обычного. Неделя идёт, задачи копятся: сегодня на тебя свалилось аж 46 дел. Цифра приличная, так что если организм вчера был без подзарядки, сегодня стоит быть к себе внимательнее.</p>
+    
+    <p>Из того, что известно — SpO2, Stress и Helio Readiness остались без данных. Это не критично, но если подобное повторится завтра, проверь заряд браслета и качество ношения во сне.</p>
+    
+    <p>**Мой совет на сегодня:**
+1. Не пытайся сегодня геройствовать и закрыть все 46 задач — начни с трёх самых важных. Без нормальных данных о восстановлении лучше не рисковать перегрузом.
+2. Вечером обязательно ляг вовремя и дай Garmin好好 (хорошенько) поработать ночью — пусть накопит данные для завтрашнего брифа.</p>
+    
+    <p>Данные вернутся, и анализ будет точнее. А пока — доверяй</p>
+    
+  </div>
+  
+
+  
+
+  
+  <div class="card">
+    <div class="card-title">😴 Сон + ❤️ Кардио</div>
+    <div class="metrics-grid">
+      <div class="metric">
+        <div class="metric-label">Sleep Score</div>
+        <div class="metric-value">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Сон</div>
+        <div class="metric-value">
+          —
+          <span class="metric-unit">ч</span>
+        </div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Deep Sleep</div>
+        <div class="metric-value">—<span class="metric-unit">%</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">HRV</div>
+        <div class="metric-value">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">RHR</div>
+        <div class="metric-value">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Body Battery</div>
+        <div class="metric-value">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Recovery</div>
+        <div class="metric-value">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">SpO2</div>
+        <div class="metric-value">—<span class="metric-unit">%</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Stress</div>
+        <div class="metric-value">—</div>
+      </div>
+    </div>
+  </div>
+  
+
+  
+
+  
+
+  
+  <div class="card">
+    <div class="card-title">🌤 Погода сегодня</div>
+    <div class="weather-grid">
+      
+      <div class="weather-period">
+        <div class="period-label">morning</div>
+        <div class="temp">23.2°</div>
+        <div class="condition">Ясно</div>
+        <div class="wind">4.3 м/с</div>
+      </div>
+      
+      <div class="weather-period">
+        <div class="period-label">day</div>
+        <div class="temp">26.0°</div>
+        <div class="condition">Ясно</div>
+        <div class="wind">6.2 м/с</div>
+      </div>
+      
+      <div class="weather-period">
+        <div class="period-label">evening</div>
+        <div class="temp">21.4°</div>
+        <div class="condition">Ясно</div>
+        <div class="wind">5.8 м/с</div>
+      </div>
+      
+    </div>
+  </div>
+  
+
+  
+
+  
+
+</div>
+</body>
+</html>
