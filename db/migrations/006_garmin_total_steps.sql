@@ -10,11 +10,16 @@
 --   2. helio_metrics.steps (fallback)
 --   3. None (empty)
 --
--- Apply via Supabase SQL Editor on project dkmoocytmhzxhjzmodmj (morning_brief_v2 schema),
--- or via psql if a service-role connection is available.
+-- IMPORTANT: Table lives in `morning_brief_v2` schema (not `public`).
+-- Supabase SQL Editor default search_path is "$user", public, so we set it
+-- explicitly + use fully-qualified table names for safety.
+--
+-- Apply via Supabase SQL Editor on project dkmoocytmhzxhjzmodmj.
 BEGIN;
 
-ALTER TABLE garmin_metrics ADD COLUMN IF NOT EXISTS total_steps  INT;
-ALTER TABLE garmin_metrics ADD COLUMN IF NOT EXISTS distance_km  NUMERIC(6,2);
+SET LOCAL search_path = morning_brief_v2, public;
+
+ALTER TABLE morning_brief_v2.garmin_metrics ADD COLUMN IF NOT EXISTS total_steps  INT;
+ALTER TABLE morning_brief_v2.garmin_metrics ADD COLUMN IF NOT EXISTS distance_km  NUMERIC(6,2);
 
 COMMIT;
