@@ -1,0 +1,1 @@
+"""Playful brief renderer — design preview для концепта Production Playful."""
