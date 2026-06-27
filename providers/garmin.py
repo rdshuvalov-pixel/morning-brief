@@ -152,6 +152,11 @@ class GarminProvider(DataProvider):
             # skin temp (difference from baseline)
             skin_temp = d.get("averageSkinTempDeviation")
 
+            # total steps + distance (Garmin API: distance in meters → km)
+            total_steps = d.get("totalSteps")
+            distance_m = d.get("totalDistanceMeters")
+            distance_km = round(distance_m / 1000, 2) if distance_m else None
+
             return {
                 "rhr": rhr,
                 "body_battery": body_battery,
@@ -161,6 +166,8 @@ class GarminProvider(DataProvider):
                 "skin_temp": skin_temp,
                 "resting_kcal": resting_kcal,
                 "active_kcal": active_kcal,
+                "total_steps": total_steps,
+                "distance_km": distance_km,
             }
         except Exception as e:
             logger.warning("Garmin daily stats fetch error: %s", e)
