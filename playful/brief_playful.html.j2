@@ -602,7 +602,11 @@
         <div class="soft">
           <div class="label">SpO2</div>
           <div class="value" style="font-size:30px;">{{ spo2_value }}%</div>
-          <div class="meta">{{ spo2_meta }}</div>
+          {% if spo2_source_label %}
+            <div class="meta" style="font-size:9px; color:var(--muted-2);">{{ spo2_source_label }}</div>
+          {% else %}
+            <div class="meta">{{ spo2_meta }}</div>
+          {% endif %}
           <div class="spark-wrap">
             <svg viewBox="0 0 120 52" width="100%" height="52" aria-label="HRV trend">
               <path d="{{ hrv_trend_path }}" fill="none" stroke="#6b4cc2" stroke-width="3" stroke-linecap="round"/>

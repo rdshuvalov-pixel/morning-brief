@@ -408,6 +408,7 @@ class PlayfulContext:
     # 2c SpO2 + HRV-trend
     spo2_value: str
     spo2_meta: str
+    spo2_source_label: str    # "" если данные за сегодня, иначе "по данным 26 June"
     spo2_value_square: str
     hrv_trend_path: str
     hrv_trend_area: str
@@ -550,7 +551,22 @@ def build_playful_context(
     sleep_end_label = "07:00"
 
     # ── 2c SpO2 + HRV-trend ──
-    spo2_val = (garmin or {}).get("spo2") or (helio or {}).get("spo2")
+    # Приоритет: garmin_today.spo2 → helio_today.spo2 → garmin_yesterday.spo2 → helio_yesterday.spo2.
+    # Если за сегодня null (cron не дотянул) — берём вчерашнее значение и помечаем.
+    spo2_today = (garmin or {}).get("spo2") or (helio or {}).get("spo2")
+    spo2_yest  = spo2_yesterday  # приходит из fetch_live_context
+
+    if spo2_today is not None:
+        spo2_val = spo2_today
+        spo2_source_label = ""
+    elif spo2_yest is not None:
+        spo2_val = spo2_yest
+        yesterday_date_str = (brief_date - timedelta(days=1)).strftime("%-d %B")
+        spo2_source_label = f"по данным {yesterday_date_str}"
+    else:
+        spo2_val = None
+        spo2_source_label = ""
+
     spo2_value = f"{spo2_val:.0f}" if spo2_val is not None else "—"
     # Подпись «стабильно всю ночь» показываем если spo2 ≥ 95 (по спеке v2)
     spo2_meta = "стабильно всю ночь" if spo2_val is not None and spo2_val >= 95 else "—"
@@ -698,6 +714,7 @@ def build_playful_context(
         spo2_value=spo2_value,
         spo2_value_square=spo2_value_square,
         spo2_meta=spo2_meta,
+        spo2_source_label=spo2_source_label,
         hrv_trend_path=hrv_trend_path,
         hrv_trend_area=hrv_trend_area,
         body_battery_delta=delta,
