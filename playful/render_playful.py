@@ -407,6 +407,7 @@ class PlayfulContext:
     # 2c SpO2 + HRV-trend
     spo2_value: str
     spo2_meta: str
+    spo2_value_square: str
     hrv_trend_path: str
     hrv_trend_area: str
 
@@ -468,6 +469,8 @@ def build_playful_context(
     hrv_baseline: int | None = None,
     hrv_7d: list[int] | None = None,
     body_battery_delta: int | None = None,
+    stress_yesterday: int | None = None,
+    spo2_yesterday: float | None = None,
 ) -> PlayfulContext:
     """Собрать PlayfulContext из сырых полей.
 
@@ -490,8 +493,8 @@ def build_playful_context(
     battery_track = _battery_color_track(bb_color)
 
     # ── Hero-grid ──
-    sleep_min = garmin.get("sleep_duration_min") if garmin else None
-    sleep_score_val = garmin.get("sleep_score") if garmin else None
+    sleep_min = (garmin or {}).get("sleep_duration_min") or (helio or {}).get("sleep_duration_min")
+    sleep_score_val = (garmin or {}).get("sleep_score") or (helio or {}).get("sleep_score")
     sleep_label = _minutes_to_label(sleep_min)
     sleep_score_str = str(sleep_score_val) if sleep_score_val is not None else "—"
 
@@ -506,7 +509,7 @@ def build_playful_context(
     sleep_pill_text, sleep_pill_class = _sleep_pill(sleep_score_val)
 
     # ── Sleep stages percentages + labels ──
-    deep_pct_val = garmin.get("deep_sleep_pct") if garmin else None
+    deep_pct_val = (garmin or {}).get("deep_sleep_pct") or (helio or {}).get("deep_sleep_pct")
     d_pct, r_pct, l_pct, a_pct = _build_sleep_pcts(sleep_min, deep_pct_val)
 
     # Реальные минуты (если есть deep_pct_val и общая длительность)
@@ -530,7 +533,7 @@ def build_playful_context(
     sleep_end_label = "07:00"
 
     # ── 2c SpO2 + HRV-trend ──
-    spo2_val = garmin.get("spo2") if garmin else None
+    spo2_val = (garmin or {}).get("spo2") or (helio or {}).get("spo2")
     spo2_value = f"{spo2_val:.0f}" if spo2_val is not None else "—"
     # Подпись «стабильно всю ночь» показываем если spo2 ≥ 95 (по спеке v2)
     spo2_meta = "стабильно всю ночь" if spo2_val is not None and spo2_val >= 95 else "—"
@@ -547,15 +550,23 @@ def build_playful_context(
         delta_class = "delta-good" if delta >= 0 else "delta-rose"
 
     readiness_label, readiness_pill = _readiness_label_and_color(
-        garmin.get("training_readiness") if garmin else None
+        (garmin or {}).get("training_readiness") or (helio or {}).get("readiness")
     )
     readiness_meta = "Лучшее окно утром" if readiness_pill == "pill-blue" else "—"
 
     stress_label, stress_pill, stress_meta = _stress_label_and_color(
-        garmin.get("stress") if garmin else None
+        stress_yesterday if stress_yesterday is not None
+        else ((garmin or {}).get("stress") or (helio or {}).get("stress"))
     )
 
-    spo2_meta_short = "Ровное дыхание" if spo2_val is not None and spo2_val >= 95 else "—"
+    # SpO2 квадрата — за вчера (по спеке v2), fallback на сегодня
+    spo2_for_square = spo2_yesterday if spo2_yesterday is not None else spo2_val
+    # Если есть вчерашний — переписываем value для квадрата
+    if spo2_for_square is not None and spo2_yesterday is not None:
+        spo2_value_square = f"{spo2_for_square:.0f}"
+    else:
+        spo2_value_square = spo2_value
+    spo2_meta_short = "Ровное дыхание" if spo2_for_square is not None and spo2_for_square >= 95 else "—"
 
     # ── 4/1 Meetings + Deep Work ──
     agenda_raw = _build_deep_work_slots(
@@ -667,6 +678,7 @@ def build_playful_context(
         sleep_pill_class=sleep_pill_class,
         sleep_pill_text=sleep_pill_text,
         spo2_value=spo2_value,
+        spo2_value_square=spo2_value_square,
         spo2_meta=spo2_meta,
         hrv_trend_path=hrv_trend_path,
         hrv_trend_area=hrv_trend_area,
@@ -950,6 +962,8 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
     # food_date = brief_date - 1 (по правилам брифа)
     food_date = brief_date - timedelta(days=1)
     weather_yesterday_date = food_date
+    # Вчерашние данные для Stress / SpO2 / Body Battery delta (по спеке v2)
+    yesterday_date = food_date
 
     food_rows = get_food_log(food_date)
     weather_rows = get_weather_log(brief_date)
@@ -959,18 +973,42 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
     calendar_rows = get_calendar_events(brief_date)
     task_rows = get_tasks(brief_date)
 
+    # Вчерашние строки для Stress / SpO2 (по спеке v2 «Stress за вчера»)
+    garmin_yesterday = get_garmin_metrics(yesterday_date)
+    helio_yesterday = get_helio_metrics(yesterday_date)
+
+    # Body Battery delta: (сегодня - вчера). Приоритет: garmin > helio (только garmin).
+    bb_today = (garmin_row or {}).get("body_battery") if garmin_row else None
+    bb_yesterday = (garmin_yesterday or {}).get("body_battery") if garmin_yesterday else None
+    body_battery_delta = (
+        bb_today - bb_yesterday
+        if (bb_today is not None and bb_yesterday is not None)
+        else None
+    )
+
+    # Stress / SpO2 за вчера: garmin приоритет, fallback helio
+    stress_yesterday = (
+        ((garmin_yesterday or {}).get("stress"))
+        or ((helio_yesterday or {}).get("stress"))
+    )
+    spo2_yesterday = (
+        ((garmin_yesterday or {}).get("spo2"))
+        or ((helio_yesterday or {}).get("spo2"))
+    )
+
     return {
         "brief_date": brief_date,
         "garmin": _map_garmin_row(garmin_row),
-        "helio": helio_row,  # в спеке v2 игнорируется
+        "helio": helio_row,
         "food": _map_food_rows(food_rows),
         "weather": _map_weather_rows(weather_rows),
         "weather_yesterday": _map_weather_rows(weather_yesterday_rows),
         "calendar": _map_calendar_rows(calendar_rows),
         "tasks": _map_task_rows(task_rows),
-        # Числа, которые renderer сейчас не умеет вычислять сам — оставим пустыми:
-        "hrv_7d": None,           # TODO: запросить hrv за 7 дней
-        "body_battery_delta": None,  # TODO: garmin_metrics за yesterday
+        # Числа для 3b — берутся за вчера по спеке v2
+        "stress_yesterday": stress_yesterday,
+        "spo2_yesterday": spo2_yesterday,
+        "body_battery_delta": body_battery_delta,
         "narrative_headline": f"Утро {brief_date.strftime('%-d %B')}",
         "narrative_summary": (
             "Утренний бриф собран из живых данных. "
