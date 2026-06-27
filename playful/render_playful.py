@@ -381,6 +381,7 @@ class PlayfulContext:
     battery_color: str          # 'good' | 'amber' | 'rose'
     battery_deg: int
     battery_track: str
+    battery_source_label: str    # "" если данные за сегодня, иначе "по данным 26 June"
 
     # Hero-grid
     sleep_label: str
@@ -469,6 +470,7 @@ def build_playful_context(
     hrv_baseline: int | None = None,
     hrv_7d: list[int] | None = None,
     body_battery_delta: int | None = None,
+    body_battery_yesterday: int | float | None = None,
     stress_yesterday: int | None = None,
     spo2_yesterday: float | None = None,
 ) -> PlayfulContext:
@@ -485,11 +487,26 @@ def build_playful_context(
     date_label = brief_date.strftime("%-d %B")
 
     # ── Battery ring ──
-    bb = garmin.get("body_battery") if garmin else None
-    bb_int = bb if isinstance(bb, (int, float)) else None
+    # Приоритет: garmin_today.body_battery. Если None (cron не дотянул) — fallback
+    # на вчерашний garmin-уровень. Если и его нет — None (UI покажет «—»).
+    bb_today = garmin.get("body_battery") if garmin else None
+    bb_today_int = bb_today if isinstance(bb_today, (int, float)) else None
+    bb_yesterday_int = body_battery_yesterday if isinstance(body_battery_yesterday, (int, float)) else None
+
+    if bb_today_int is not None:
+        bb_int = bb_today_int
+        battery_source_label = ""
+    elif bb_yesterday_int is not None:
+        bb_int = bb_yesterday_int
+        yesterday_date_str = (brief_date - timedelta(days=1)).strftime("%-d %B")
+        battery_source_label = f"по данным {yesterday_date_str}"
+    else:
+        bb_int = None
+        battery_source_label = ""
+
     bb_color = _battery_color(bb_int)
     bb_deg = round((bb_int or 0) / 100 * 360)
-    battery_value = str(bb_int) if bb_int is not None else "—"
+    battery_value = str(int(bb_int)) if bb_int is not None else "—"
     battery_track = _battery_color_track(bb_color)
 
     # ── Hero-grid ──
@@ -659,6 +676,7 @@ def build_playful_context(
         battery_color=bb_color,
         battery_deg=bb_deg,
         battery_track=battery_track,
+        battery_source_label=battery_source_label,
         sleep_label=sleep_label,
         sleep_score=sleep_score_str,
         hrv_value=str(hrv_val) if hrv_val is not None else "—",
@@ -985,6 +1003,8 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         if (bb_today is not None and bb_yesterday is not None)
         else None
     )
+    # Body Battery вчера — для fallback в ring когда cron за сегодня не отработал
+    body_battery_yesterday = bb_yesterday
 
     # Stress / SpO2 за вчера: garmin приоритет, fallback helio
     stress_yesterday = (
@@ -1009,6 +1029,7 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         "stress_yesterday": stress_yesterday,
         "spo2_yesterday": spo2_yesterday,
         "body_battery_delta": body_battery_delta,
+        "body_battery_yesterday": body_battery_yesterday,
         "narrative_headline": f"Утро {brief_date.strftime('%-d %B')}",
         "narrative_summary": (
             "Утренний бриф собран из живых данных. "

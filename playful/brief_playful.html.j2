@@ -628,6 +628,9 @@
         <div class="metric-box">
           <div class="label">Body Battery</div>
           <div class="value">{{ battery_value }}</div>
+          {% if battery_source_label %}
+            <div class="meta" style="font-size:10px; color:var(--muted-2);">{{ battery_source_label }}</div>
+          {% endif %}
           {% if body_battery_delta is not none %}
             <div class="delta {{ body_battery_delta_class }}">{{ body_battery_delta_label }}</div>
           {% endif %}
