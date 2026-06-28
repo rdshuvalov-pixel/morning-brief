@@ -96,15 +96,11 @@
       justify-content: space-between;
       gap: 12px;
       align-items: start;
-      flex-wrap: wrap;             /* перенос батарейки вниз если не влезает */
-    }
-    .hero-top > div:first-child {  /* левый блок (badge+h1+lead) */
-      flex: 1 1 200px;
-      min-width: 0;
+      /* батарейка справа от заголовка, на одной высоте */
     }
     .battery {
       width: 116px;
-      max-width: 38%;             /* не дать кольцу уехать за контейнер */
+      max-width: 36%;             /* страховка: на совсем узких не уехать */
       aspect-ratio: 1;
       border-radius: 32px;
       padding: 14px;
@@ -112,7 +108,7 @@
         radial-gradient(circle at center, rgba(240, 103, 87, 0.12), transparent 58%),
         linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,246,240,0.92));
       border: 1px solid rgba(255,255,255,0.58);
-      flex-shrink: 1;             /* сжимаемое на узких экранах */
+      flex-shrink: 1;             /* не выталкивать за контейнер */
     }
 
     h1 {
@@ -539,6 +535,14 @@
       padding: 8px 4px;
     }
 
+    @media (max-width: 380px) {
+      /* очень узкий мобиль — батарейка справа меньше, текст расширяется */
+      .battery { width: 88px; padding: 10px; }
+      .battery-ring strong { font-size: 22px; }
+      .battery-ring span { font-size: 9px; }
+      h1 { font-size: 30px; max-width: none; }
+      .lead { max-width: none; font-size: 14px; }
+    }
     @media (max-width: 360px) {
       .split { grid-template-columns: 1fr; }
       .weather { grid-template-columns: 1fr; }
@@ -654,8 +658,8 @@
         
         <div class="hero-badge">28 June</div>
 
-        <h1>97 — хватит разминаться</h1>
-        <p class="lead">97/100 батарейка, HRV 70, пульс 46. Тело заряжено, голова — твоя очередь. Сон 5ч58м так себе, но −2466 ккал за вчера — это уже не отдых, это недорасход.</p>
+        <h1>97 — хватит мерить, пора делать</h1>
+        <p class="lead">5ч 58м сна, батарейка 97, пульс 46. Тело в порядке, баланс -2466 ккал. Это не отчёт — это разрешение работать.</p>
       </div>
 
       
@@ -689,7 +693,7 @@
     </div>
 
     
-      <div class="block-opinion">97 батарейка после почти 6 часов сна — не логика, а ты. Используй это до обеда, потом просядет.</div>
+      <div class="block-opinion">97 батарейка при 5ч58м сна — недолго. До обеда ты бог, после обеда ты гость. Грузи главное до 13.</div>
     
   </section>
 
@@ -803,7 +807,7 @@
       
 
       
-        <div class="block-opinion">Свободный день без встреч — редкость. Бери главное, что давно откладывал, и доведи до результата до вечера.</div>
+        <div class="block-opinion">Свободный день — редкость. Бери главное, что всю неделю откладывал, и закрой до обеда, пока голова ещё свежая.</div>
       
     </article>
 
@@ -848,7 +852,7 @@
       </div>
 
       
-        <div class="block-opinion">Вчера был ноль — не день, а черновик. Сегодня закроешь минус белком и движением, иначе вечером тело напомнит.</div>
+        <div class="block-opinion">Вчера -2466 без единой калории — это не fasting, это срыв. Сегодня минимум 1500 ккал, иначе вечером сожрёшь всё подряд.</div>
       
     </article>
 
@@ -870,7 +874,7 @@
       
 
       
-        <div class="block-opinion">Температуры нет — значит и повода ныть нет. Вышел, прошёлся, размялся, зашёл — всё, день уже не зря.</div>
+        <div class="block-opinion">Без данных о погоде — не время философствовать, открой приложение и посмотри сам, потом решишь.</div>
       
     </article>
 
