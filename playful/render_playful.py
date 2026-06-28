@@ -639,6 +639,20 @@ def build_playful_context(
     # stable tie-break by title so render is deterministic.
     tasks_sorted = sorted(tasks, key=lambda t: (t.get("priority") or 4, t.get("title") or ""))
 
+    # Truncate long titles so they don't break the 430px mobile layout.
+    # 80 chars fits 2 lines of card title on iPhone-width viewport; longer
+    # titles (e.g. URLs pasted into Todoist task names) push the flex
+    # container off-screen. Original length is preserved as `title_full`
+    # in case a future tooltip wants the full text.
+    TASK_TITLE_MAX = 80
+    for t in tasks_sorted:
+        full = (t.get("title") or "").strip()
+        if len(full) > TASK_TITLE_MAX:
+            t["title_full"] = full
+            t["title"] = full[:TASK_TITLE_MAX - 1].rstrip() + "…"
+        else:
+            t["title_full"] = full
+
     # ── 5 Movement ──
     # По спеке v2: блок движения/питания опирается на ВЧЕРАШНИЙ день.
     # Это "результат, который уже состоялся к утру сегодня" —
