@@ -622,7 +622,22 @@ def build_playful_context(
     if tasks_count == 0:
         tasks_count_label = "Свободно"
     else:
-        tasks_count_label = f"{tasks_count} tasks"
+        # Russian plural: 1 задача, 2-4 задачи, 5-20 задач, then задач
+        n100 = tasks_count % 100
+        n10 = n100 % 10
+        if 11 <= n100 <= 14:
+            word = "задач"
+        elif n10 == 1:
+            word = "задача"
+        elif 2 <= n10 <= 4:
+            word = "задачи"
+        else:
+            word = "задач"
+        tasks_count_label = f"{tasks_count} {word}"
+
+    # Sort: highest priority first (1 = p1 highest, 4 = p4 lowest),
+    # stable tie-break by title so render is deterministic.
+    tasks_sorted = sorted(tasks, key=lambda t: (t.get("priority") or 4, t.get("title") or ""))
 
     # ── 5 Movement ──
     # По спеке v2: блок движения/питания опирается на ВЧЕРАШНИЙ день.
@@ -736,7 +751,7 @@ def build_playful_context(
         focus_window_label=focus_window,
         meeting_count_label=meeting_count_label,
         agenda_items=agenda_raw,
-        tasks=tasks,
+        tasks=tasks_sorted,
         tasks_count_label=tasks_count_label,
         steps_value=_format_num(steps_val),
         steps_goal=steps_goal,
