@@ -131,8 +131,11 @@ class GarminProvider(DataProvider):
 
             body_battery_data = await asyncio.get_event_loop().run_in_executor(None, _call_body_battery)
             body_battery = None
+            body_battery_max = None
             if body_battery_data and isinstance(body_battery_data, list) and len(body_battery_data) > 0:
-                body_battery = body_battery_data[0].get("charged")
+                sample = body_battery_data[0]
+                body_battery = sample.get("charged")
+                body_battery_max = sample.get("max")
 
             # SpO2
             spo2 = d.get("averageSpo2")
@@ -160,6 +163,7 @@ class GarminProvider(DataProvider):
             return {
                 "rhr": rhr,
                 "body_battery": body_battery,
+                "body_battery_max": body_battery_max,
                 "spo2": spo2,
                 "training_readiness": training_readiness,
                 "stress": stress,

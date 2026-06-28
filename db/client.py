@@ -38,9 +38,36 @@ def upsert_brief(date_val: str) -> dict[str, Any]:
     return data[0] if data else {}
 
 
+# garmin_metrics column types (matches db/migrations/001_initial_schema.sql + 002)
+# Coerce provider output (often floats from Garmin API) to match the schema.
+_GARMIN_INT_COLS = {
+    "sleep_duration_min", "sleep_score", "hrv", "body_battery", "body_battery_max", "rhr",
+    "training_readiness", "stress", "total_steps",
+    "resting_kcal", "active_kcal",
+}
+_GARMIN_NUMERIC_COLS = {
+    "deep_sleep_pct", "spo2", "skin_temp", "distance_km",
+}
+
+
+def _coerce_garmin_row(metrics: dict[str, Any]) -> dict[str, Any]:
+    coerced: dict[str, Any] = {}
+    for k, v in metrics.items():
+        if v is None:
+            coerced[k] = None
+            continue
+        if k in _GARMIN_INT_COLS:
+            coerced[k] = int(round(float(v)))
+        elif k in _GARMIN_NUMERIC_COLS:
+            coerced[k] = round(float(v), 2)
+        else:
+            coerced[k] = v
+    return coerced
+
+
 def upsert_garmin_metrics(brief_id: str, date_val: str, metrics: dict[str, Any]) -> dict[str, Any]:
     sb = get_client()
-    row = {"brief_id": brief_id, "date": str(date_val), **metrics}
+    row = {"brief_id": brief_id, "date": str(date_val), **_coerce_garmin_row(metrics)}
     result = sb.table("garmin_metrics").upsert(row, on_conflict="date").execute()
     data = result.data if hasattr(result, 'data') else result
     return data[0] if data else {}
