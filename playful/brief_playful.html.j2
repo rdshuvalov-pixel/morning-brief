@@ -393,6 +393,45 @@
       white-space: nowrap;
     }
 
+    .tasks-summary {
+      margin-top: 14px;
+      padding: 14px 14px 12px;
+      border-radius: 14px;
+      background: rgba(34, 27, 51, 0.04);
+      border-left: 3px solid var(--blue);
+    }
+    .tasks-summary-title {
+      color: var(--ink);
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .tasks-summary-text {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .block-opinion {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(124, 164, 255, 0.08);
+      border-left: 2px solid var(--blue);
+      color: var(--ink);
+      font-size: 13.5px;
+      line-height: 1.4;
+      font-style: italic;
+    }
+    .block-opinion::before {
+      content: "✦ ";
+      color: var(--blue);
+      font-style: normal;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
     .progress-group {
       display: grid;
       gap: 12px;
@@ -559,6 +598,10 @@
         <div class="meta">Resting bpm</div>
       </div>
     </div>
+
+    {% if opinion_battery %}
+      <div class="block-opinion">{{ opinion_battery }}</div>
+    {% endif %}
   </section>
 
   <section class="stack">
@@ -694,6 +737,10 @@
       {% else %}
         <p class="section-empty">Нет событий на сегодня — свободный день.</p>
       {% endif %}
+
+      {% if opinion_calendar %}
+        <div class="block-opinion">{{ opinion_calendar }}</div>
+      {% endif %}
     </article>
 
     {# ── 4/2. Задачи на сегодня (Todoist) ── #}
@@ -721,6 +768,16 @@
           </div>
         {% endfor %}
       </div>
+
+      {# Итог по задачам — текст нарратива (footer_title + footer_text) #}
+      <div class="tasks-summary">
+        <div class="tasks-summary-title">{{ footer_title }}</div>
+        <p class="tasks-summary-text">{{ footer_text }}</p>
+      </div>
+
+      {% if opinion_tasks %}
+        <div class="block-opinion">{{ opinion_tasks }}</div>
+      {% endif %}
     </article>
     {% endif %}
 
@@ -760,6 +817,10 @@
           <div class="meta">{{ balance_meta }}</div>
         {% endif %}
       </div>
+
+      {% if opinion_movement %}
+        <div class="block-opinion">{{ opinion_movement }}</div>
+      {% endif %}
     </article>
 
     {# ── 6. Что снаружи (погода) ── #}
@@ -789,16 +850,13 @@
       {% if weather_vs_yesterday %}
         <div class="weather-vs-yesterday">{{ weather_vs_yesterday }}</div>
       {% endif %}
+
+      {% if opinion_weather %}
+        <div class="block-opinion">{{ opinion_weather }}</div>
+      {% endif %}
     </article>
 
-    {# ── 7. Footer — Общая сводка ── #}
-    <article class="footer">
-      <div class="label">Общая сводка</div>
-      <div class="value" style="color:#fff3ea; font-size:28px; margin-top:6px;">{{ footer_title }}</div>
-      <p>{{ footer_text }}</p>
-    </article>
-
-  </section>
+    </section>
 </main>
 </body>
 </html>

@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import sys
@@ -455,6 +456,13 @@ class PlayfulContext:
     footer_title: str
     footer_text: str
 
+    # 8 per-block opinions (LLM 1-sentence commentary, or empty)
+    opinion_weather: str | None
+    opinion_tasks: str | None
+    opinion_movement: str | None
+    opinion_calendar: str | None
+    opinion_battery: str | None
+
 
 def build_playful_context(
     *,
@@ -472,6 +480,11 @@ def build_playful_context(
     narrative_summary: str = "Утренний бриф собирается...",
     narrative_footer_title: str = "Утренний бриф",
     narrative_footer_text: str = "Данные собираются...",
+    opinion_weather: str | None = None,
+    opinion_tasks: str | None = None,
+    opinion_movement: str | None = None,
+    opinion_calendar: str | None = None,
+    opinion_battery: str | None = None,
     focus_window: str = "Focus 08:30–11:30",
     hrv_baseline: int | None = None,
     hrv_7d: list[int] | None = None,
@@ -784,6 +797,11 @@ def build_playful_context(
         weather_vs_yesterday=weather_vs_yesterday,
         footer_title=narrative_footer_title,
         footer_text=narrative_footer_text,
+        opinion_weather=opinion_weather,
+        opinion_tasks=opinion_tasks,
+        opinion_movement=opinion_movement,
+        opinion_calendar=opinion_calendar,
+        opinion_battery=opinion_battery,
     )
 
 
@@ -1008,6 +1026,59 @@ def _map_task_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def facts_dict_for(block: str, rows, top_task_title: str | None = None) -> dict[str, Any]:
+    """Build the facts dict for one block's opinion prompt.
+
+    Different blocks read from different upstream shapes:
+      - weather: list of {period, temp, condition} — pick 'day'
+      - tasks: list of {title, priority} — count + top + p3_count
+      - calendar: list of {title, duration_minutes} — meeting count + DW mins
+
+    Top_task_title is computed once in fetch_live_context (already sorted
+    by priority) so we don't recompute here.
+    """
+    if block == "weather":
+        if not rows:
+            return {}
+        day = next((w for w in rows if w.get("period") == "day"), None)
+        if not day:
+            return {}
+        return {
+            "condition": day.get("condition") or "—",
+            "temp_day": day.get("temp"),
+        }
+
+    if block == "tasks":
+        if not rows:
+            return {"count": 0, "top_task": None, "p3_count": 0}
+        p3_count = sum(1 for r in rows if (r.get("priority") or 4) <= 3)
+        return {
+            "count": len(rows),
+            "top_task": top_task_title,
+            "p3_count": p3_count,
+        }
+
+    if block == "calendar":
+        if not rows:
+            return {"meetings_count": 0, "deepwork_minutes": 0, "free_day": True}
+        meetings_count = sum(
+            1 for r in rows
+            if not (r.get("css_class") == "deepwork" or "deep" in (r.get("title") or "").lower())
+        )
+        deepwork_minutes = sum(
+            (r.get("duration_minutes") or 0)
+            for r in rows
+            if (r.get("css_class") == "deepwork" or "deep" in (r.get("title") or "").lower())
+        )
+        return {
+            "meetings_count": meetings_count,
+            "deepwork_minutes": deepwork_minutes,
+            "free_day": meetings_count == 0 and deepwork_minutes == 0,
+        }
+
+    return {}
+
+
 def fetch_live_context(brief_date: date) -> dict[str, Any]:
     """Подтянуть данные за brief_date из Supabase.
 
@@ -1142,6 +1213,74 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         )
         logger.info("narrative: Hermes unavailable, using fallback defaults")
 
+    # ── Block opinions (5 параллельных вызовов hermes через asyncio.gather) ──
+    # Per-block 1-sentence commentary shown at the bottom of each card.
+    # Run via asyncio.run since fetch_live_context is sync — opinion calls
+    # are wall-clock parallel, so total latency ~ slowest single call
+    # (default 30s timeout per call, with gather all fire simultaneously).
+    from playful.narrative import compose_all_opinions
+
+    # Build per-block facts
+    weather_day_facts = facts_dict_for("weather", weather_rows)
+    tasks_facts = facts_dict_for("tasks", task_rows, top_task_title)
+    movement_facts = {
+        "steps_yesterday": steps_yest,
+        "balance_yesterday": balance_yest,
+        "kcal_eaten_yesterday": kcal_eaten_yest,
+        "kcal_burned_yesterday": kcal_burned_yest,
+    }
+    calendar_facts = facts_dict_for("calendar", calendar_rows)
+    battery_facts = {
+        "body_battery": garmin_today.get("body_battery"),
+        "sleep_label": sleep_label,
+        "sleep_score": sleep_score,
+        "hrv": garmin_today.get("hrv"),
+    }
+    block_facts = {
+        "weather": weather_day_facts,
+        "tasks": tasks_facts,
+        "movement": movement_facts,
+        "calendar": calendar_facts,
+        "battery": battery_facts,
+    }
+
+    try:
+        # If we're already inside an event loop (e.g. run_all.py uses asyncio
+        # for parallel providers), we cannot use asyncio.run(). Schedule on
+        # the running loop instead via run_coroutine_threadsafe isn't an
+        # option here either (we're on the same thread), so just await
+        # directly via loop.run_until_complete when not in a loop, or
+        # via a sync wrapper using a new loop when in one.
+        import asyncio as _aio
+        try:
+            _aio.get_running_loop()
+            # Inside a running loop → spin up a fresh loop in a worker thread
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
+                opinions = _pool.submit(
+                    lambda: _aio.run(compose_all_opinions(block_facts))
+                ).result()
+        except RuntimeError:
+            # Not in a loop → safe to use asyncio.run
+            opinions = _aio.run(compose_all_opinions(block_facts))
+    except Exception as e:
+        logger.warning("opinions: dispatch failed (%s), skip", e)
+        opinions = {b: None for b in block_facts}
+
+    op_weather = opinions.get("weather")
+    op_tasks = opinions.get("tasks")
+    op_movement = opinions.get("movement")
+    op_calendar = opinions.get("calendar")
+    op_battery = opinions.get("battery")
+    logger.info(
+        "opinions: weather=%s tasks=%s movement=%s calendar=%s battery=%s",
+        "ok" if op_weather else "—",
+        "ok" if op_tasks else "—",
+        "ok" if op_movement else "—",
+        "ok" if op_calendar else "—",
+        "ok" if op_battery else "—",
+    )
+
     return {
         "brief_date": brief_date,
         "garmin": _map_garmin_row(garmin_row),
@@ -1163,6 +1302,12 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         "narrative_summary": _narrative_summary,
         "narrative_footer_title": _narrative_footer_title,
         "narrative_footer_text": _narrative_footer_text,
+        # Per-block opinions from LLM (or None when hermes unavailable)
+        "opinion_weather": op_weather,
+        "opinion_tasks": op_tasks,
+        "opinion_movement": op_movement,
+        "opinion_calendar": op_calendar,
+        "opinion_battery": op_battery,
         "focus_window": "Focus 08:30–11:30",
     }
 
