@@ -488,13 +488,11 @@ def build_playful_context(
     date_label = brief_date.strftime("%-d %B")
 
     # ── Battery ring ──
-    # Приоритет: garmin_today.body_battery_max (пик за день, актуальнее для утра).
-    # Fallback: body_battery (charged на конец дня), затем вчерашний.
-    bb_max_today = garmin.get("body_battery_max") if garmin else None
-    bb_charged_today = garmin.get("body_battery") if garmin else None
-    bb_today_int = bb_max_today if isinstance(bb_max_today, (int, float)) else (
-        bb_charged_today if isinstance(bb_charged_today, (int, float)) else None
-    )
+    # body_battery — пиковый заряд за день (Garmin API field `max`,
+    # см. providers/garmin.py). Если None (cron не дотянул) — fallback
+    # на вчерашний уровень. Если и его нет — None (UI покажет «—»).
+    bb_today = garmin.get("body_battery") if garmin else None
+    bb_today_int = bb_today if isinstance(bb_today, (int, float)) else None
     bb_yesterday_int = body_battery_yesterday if isinstance(body_battery_yesterday, (int, float)) else None
 
     if bb_today_int is not None:
@@ -768,8 +766,7 @@ DEMO_CONTEXT_DICT = {
         "hrv": 61,
         "rhr": 52,
         "spo2": 97,
-        "body_battery": 78,
-        "body_battery_max": 92,
+        "body_battery": 92,
         "training_readiness": 84,
         "stress": 22,                     # вчерашний — Low
         "totalSteps": 8460,

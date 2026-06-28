@@ -79,7 +79,6 @@ class GarminRow:
     deep_sleep_pct:      float | None
     hrv:                 int | None
     body_battery:        int | None
-    body_battery_max:    int | None
     rhr:                 int | None
     spo2:                float | None
     training_readiness:  int | None

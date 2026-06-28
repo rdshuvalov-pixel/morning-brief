@@ -41,7 +41,7 @@ def upsert_brief(date_val: str) -> dict[str, Any]:
 # garmin_metrics column types (matches db/migrations/001_initial_schema.sql + 002)
 # Coerce provider output (often floats from Garmin API) to match the schema.
 _GARMIN_INT_COLS = {
-    "sleep_duration_min", "sleep_score", "hrv", "body_battery", "body_battery_max", "rhr",
+    "sleep_duration_min", "sleep_score", "hrv", "body_battery", "rhr",
     "training_readiness", "stress", "total_steps",
     "resting_kcal", "active_kcal",
 }
