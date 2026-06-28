@@ -463,6 +463,8 @@ def build_playful_context(
     calendar: list[dict],
     tasks: list[dict],
     weather_yesterday: list[dict] | None = None,
+    garmin_yesterday: dict | None = None,
+    helio_yesterday: dict | None = None,
     narrative_headline: str = "Доброе утро",
     narrative_summary: str = "Утренний бриф собирается...",
     narrative_footer_title: str = "Утренний бриф",
@@ -623,17 +625,22 @@ def build_playful_context(
         tasks_count_label = f"{tasks_count} tasks"
 
     # ── 5 Movement ──
-    steps_val = (garmin or {}).get("totalSteps") or (helio or {}).get("steps")
+    # По спеке v2: блок движения/питания опирается на ВЧЕРАШНИЙ день.
+    # Это "результат, который уже состоялся к утру сегодня" —
+    # я вчера прошёл / я вчера съел / я вчера потратил.
+    movement_src = garmin_yesterday or garmin
+    helio_movement_src = helio_yesterday or helio
+    steps_val = (movement_src or {}).get("totalSteps") or (helio_movement_src or {}).get("steps")
     steps_goal = 10000
     steps_pct = min(100, _pct(steps_val, steps_goal))
 
     total_kcal = sum(e.get("kcal", 0) for e in food)
     kcal_burned_val = (
-        ((garmin or {}).get("resting_kcal") or 0)
-        + ((garmin or {}).get("active_kcal") or 0)
+        ((movement_src or {}).get("resting_kcal") or 0)
+        + ((movement_src or {}).get("active_kcal") or 0)
     )
-    if not kcal_burned_val and helio:
-        kcal_burned_val = helio.get("kcal") or 0
+    if not kcal_burned_val and helio_movement_src:
+        kcal_burned_val = helio_movement_src.get("kcal") or 0
 
     kcal_burned_pct = min(100, _pct(kcal_burned_val, 2980))
     kcal_eaten_pct = min(100, _pct(total_kcal, 2980))
@@ -1038,6 +1045,9 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         "brief_date": brief_date,
         "garmin": _map_garmin_row(garmin_row),
         "helio": helio_row,
+        # Вчерашние garmin/helio для блока движения/питания (по спеке v2)
+        "garmin_yesterday": _map_garmin_row(garmin_yesterday),
+        "helio_yesterday": helio_yesterday,
         "food": _map_food_rows(food_rows),
         "weather": _map_weather_rows(weather_rows),
         "weather_yesterday": _map_weather_rows(weather_yesterday_rows),
