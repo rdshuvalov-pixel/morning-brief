@@ -539,10 +539,108 @@
       .weather { grid-template-columns: 1fr; }
       .hero-grid { grid-template-columns: repeat(2, 1fr); }
     }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(34, 27, 51, 0.08);
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .topbar-arrow {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 24px;
+      line-height: 1;
+      width: 32px;
+      text-align: center;
+      user-select: none;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .topbar-arrow:hover { color: var(--ink); }
+    .topbar-arrow.disabled { opacity: 0.25; pointer-events: none; }
+    .topbar-date { flex: 1; text-align: center; font-weight: 600; font-size: 15px; }
+    .topbar-all {
+      color: var(--blue);
+      background: none;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+    .topbar-all:hover { background: rgba(34, 116, 165, 0.08); }
+
+    .archive-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .archive-modal-inner {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      max-height: 80vh;
+      max-width: 360px;
+      width: 100%;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    }
+    .archive-modal h3 { margin: 0 0 12px; font-size: 18px; }
+    .archive-list { list-style: none; padding: 0; margin: 0 0 12px; }
+    .archive-list li a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 8px;
+      text-decoration: none;
+      color: var(--ink);
+      font-size: 15px;
+    }
+    .archive-list li a:hover { background: rgba(0, 0, 0, 0.04); }
+    .archive-list li a.current {
+      background: rgba(34, 116, 165, 0.10);
+      color: var(--blue);
+      font-weight: 600;
+    }
+    .archive-close {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      background: var(--blue);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: inherit;
+    }
   </style>
 </head>
 <body>
-<main class="phone">
+
+<nav class="topbar" id="topbar">
+  <a href="#" id="topbar-prev" class="topbar-arrow" aria-label="Предыдущий день">‹</a>
+  <span id="topbar-date" class="topbar-date">Сегодня</span>
+  <a href="#" id="topbar-next" class="topbar-arrow" aria-label="Следующий день">›</a>
+  <button type="button" id="topbar-all" class="topbar-all" aria-label="Все брифы">все</button>
+</nav>
+
+<main class="phone" id="brief-main">
 
   
   <section class="hero">
@@ -551,8 +649,8 @@
         
         <div class="hero-badge">28 June</div>
 
-        <h1>97 — хватит ныть, работаем</h1>
-        <p class="lead">Батарейка 97, HRV 70, пульс 46. Тело в полном порядке — это не гипотеза, это цифры. 5ч 58м сна и Night Uneven, но −3 к вчера не повод тормозить.</p>
+        <h1>97 — не повод расслабляться</h1>
+        <p class="lead">Батарейка 97, пульс 46, HRV 70. Тело в полном порядке — было вчера, есть сегодня. Сон рваный, 5ч 58м и Night Uneven, но это уже в прошлом. Не списывай на усталость то, что лень.</p>
       </div>
 
       
@@ -586,7 +684,7 @@
     </div>
 
     
-      <div class="block-opinion">97 батарейка при 5ч58м сна — ты в плюсе не по логике, а по запасу. Бери главное до обеда, дальше ресурс уже не тот.</div>
+      <div class="block-opinion">97 на батарейке после почти шести часов — окно короткое, ставь главное на утро и не размазывай себя на мелочи.</div>
     
   </section>
 
@@ -700,84 +798,11 @@
       
 
       
-        <div class="block-opinion">Свободный день без встреч — закрывай p3 из задач, остальное само отвалится к вечеру.</div>
+        <div class="block-opinion">Свободный день без встреч — главный звонок. Закрой одну сложную задачу до обеда, остальное само утопится.</div>
       
     </article>
 
     
-    
-    <article class="card">
-      <div class="card-head">
-        <div>
-          <div class="label">Задачи</div>
-          <div class="title">На сегодня</div>
-        </div>
-        <div class="pill pill-blue">39 задач</div>
-      </div>
-      <div class="list">
-        
-          <div class="item">
-            <div class="item-priority p3">p3</div>
-            <div style="flex:1;">
-              <strong>Изучить dikidi_youtube_review_research.md</strong>
-            </div>
-            <div class="when">
-              
-            </div>
-          </div>
-        
-          <div class="item">
-            <div class="item-priority p3">p3</div>
-            <div style="flex:1;">
-              <strong>Исследовать [GitHub - Panniantong/Agent-Reach: Give your AI agent eyes to see t…</strong>
-            </div>
-            <div class="when">
-              
-            </div>
-          </div>
-        
-          <div class="item">
-            <div class="item-priority p4">p4</div>
-            <div style="flex:1;">
-              <strong>1 видеообзор</strong>
-            </div>
-            <div class="when">
-              
-            </div>
-          </div>
-        
-          <div class="item">
-            <div class="item-priority p4">p4</div>
-            <div style="flex:1;">
-              <strong>API поиск на Reddit чтобы сделать свой агрегатор</strong>
-            </div>
-            <div class="when">
-              
-            </div>
-          </div>
-        
-          <div class="item">
-            <div class="item-priority p4">p4</div>
-            <div style="flex:1;">
-              <strong>Агрегатор навыков и поисковик</strong>
-            </div>
-            <div class="when">
-              
-            </div>
-          </div>
-        
-      </div>
-
-      
-      <div class="tasks-summary">
-        <div class="tasks-summary-title">dikidi ждёт, не тяни</div>
-        <p class="tasks-summary-text">Погода ясная, 24.2° на улице. Топ-задача — изучить dikidi_youtube_review_research.md, пока голова свежая. К обеду без прогресса — вечером будешь догонять то, что мог сделать за 20 минут утром.</p>
-      </div>
-
-      
-        <div class="block-opinion">Из 39 задач только две горят по-настоящему — закрой dikidi_youtube_review_research.md и вторую p3 до обеда, остальные сами в очередь встанут.</div>
-      
-    </article>
     
 
     
@@ -808,17 +833,17 @@
         <div class="progress-row">
           <div class="progress-head">
             <span>Съел</span>
-            <span>2 415 ккал</span>
+            <span>0 ккал</span>
           </div>
-          <div class="track"><div class="fill fill-eat" style="width:81%;"></div></div>
+          <div class="track"><div class="fill fill-eat" style="width:0%;"></div></div>
         </div>
         
-          <div class="meta">Баланс −51 ккал. Неплохой день, чтобы не переусердствовать.</div>
+          <div class="meta">Баланс −2466 ккал. Дефицит — стоит закрыть окно плотным ужином.</div>
         
       </div>
 
       
-        <div class="block-opinion">Минус 51 — почти в ноль, но дефицит мизерный. Добавь перекус на 200 ккал утром, и тело скажет спасибо к обеду.</div>
+        <div class="block-opinion">4348 шагов и минус 2466 ккал — вчера ты просто существовал. Сегодня закрой 7к шагов и поешь нормально, иначе к вечеру сдохнешь.</div>
       
     </article>
 
@@ -830,46 +855,154 @@
           <div class="title">Что снаружи</div>
         </div>
         
-          <div class="pill pill-blue">Wind 30 km/h</div>
-        
       </div>
 
       <div class="weather">
         
-          <div class="weather-card">
-            <div class="weather-icon">☀️</div>
-            <div class="label">Утро</div>
-            <div class="weather-temp">22°</div>
-            <div class="meta">Ясно</div>
-          </div>
-        
-          <div class="weather-card">
-            <div class="weather-icon">☀️</div>
-            <div class="label">День</div>
-            <div class="weather-temp">24°</div>
-            <div class="meta">Ясно</div>
-          </div>
-        
-          <div class="weather-card">
-            <div class="weather-icon">☀️</div>
-            <div class="label">Вечер</div>
-            <div class="weather-temp">21°</div>
-            <div class="meta">Ясно</div>
-          </div>
-        
       </div>
 
       
       
-        <div class="weather-vs-yesterday">утром так же; днём так же; вечером так же.</div>
-      
 
       
-        <div class="block-opinion">24 и ясно — это зов на улицу, не повод сидеть. Встречу на 10 пешком, проветри голову заодно.</div>
+        <div class="block-opinion">Ни днёвки, ни понтов — выходи, морду ветром обдуть. Дома стены не дадут того, что даёт улица.</div>
       
     </article>
 
     </section>
 </main>
+
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const urlDate = params.get("date");
+  // Lisbon date today (matches /etc/cron.d... no, matches archive_brief.py)
+  function lisbonToday() {
+    try {
+      const fmt = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Lisbon",
+        year: "numeric", month: "2-digit", day: "2-digit",
+      });
+      return fmt.format(new Date());  // YYYY-MM-DD
+    } catch (_) {
+      const d = new Date();
+      return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+    }
+  }
+  const today = lisbonToday();
+  const currentDate = urlDate || today;
+
+  const elPrev   = document.getElementById("topbar-prev");
+  const elNext   = document.getElementById("topbar-next");
+  const elDate   = document.getElementById("topbar-date");
+  const elAll    = document.getElementById("topbar-all");
+  const elMain   = document.getElementById("brief-main");
+
+  function fmtRu(iso) {
+    const [y,m,d] = iso.split("-");
+    const months = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+    return `${parseInt(d,10)} ${months[parseInt(m,10)-1]}`;
+  }
+  function fmtRuFull(iso) {
+    const [y,m,d] = iso.split("-");
+    const months = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+    return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+  }
+
+  function setDateLabel(iso) {
+    elDate.textContent = (iso === today) ? `${fmtRu(iso)} · сегодня` : fmtRu(iso);
+  }
+
+  function goTo(dateStr) {
+    if (!dateStr) return;
+    const u = new URL(location.href);
+    u.searchParams.set("date", dateStr);
+    location.href = u.toString();
+  }
+
+  function goToday() {
+    const u = new URL(location.href);
+    u.searchParams.delete("date");
+    location.href = u.toString();
+  }
+
+  // --- Load manifest ---
+  let dates = [today];  // safe fallback
+  fetch("archive/manifest.json", { cache: "no-store" })
+    .then(r => r.ok ? r.json() : { dates: [today] })
+    .then(j => { dates = (j.dates || [today]).slice(); })
+    .catch(() => { /* keep fallback */ })
+    .finally(() => {
+      // Make sure today is in the list (it'll be archived at 07:30)
+      if (!dates.includes(today)) dates.unshift(today);
+      const idx = dates.indexOf(currentDate);
+
+      // Wire prev/next
+      elPrev.onclick = (e) => { e.preventDefault(); if (idx > 0) goTo(dates[idx-1]); };
+      elNext.onclick = (e) => { e.preventDefault(); if (idx >= 0 && idx < dates.length-1) goTo(dates[idx+1]); };
+      if (idx <= 0) { elPrev.classList.add("disabled"); elPrev.setAttribute("aria-disabled", "true"); }
+      if (idx < 0 || idx >= dates.length-1) { elNext.classList.add("disabled"); elNext.setAttribute("aria-disabled", "true"); }
+      elDate.onclick = goToday;
+      elDate.style.cursor = "pointer";
+
+      setDateLabel(currentDate);
+    });
+
+  // --- Archive modal ---
+  elAll.onclick = (e) => {
+    e.preventDefault();
+    const modal = document.createElement("div");
+    modal.className = "archive-modal";
+    modal.innerHTML = `
+      <div class="archive-modal-inner">
+        <h3>Все брифы</h3>
+        <ul class="archive-list">
+          ${dates.map(d => {
+            const cls = (d === currentDate) ? ' class="current"' : '';
+            const label = (d === today) ? `${fmtRuFull(d)} · сегодня` : fmtRuFull(d);
+            return `<li><a href="?date=${d}"${cls}>${label}</a></li>`;
+          }).join("")}
+        </ul>
+        <button type="button" class="archive-close">закрыть</button>
+      </div>`;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector(".archive-close").onclick = close;
+    modal.onclick = (ev) => { if (ev.target === modal) close(); };
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); }
+    });
+  };
+
+  // --- If ?date= is set, swap main content with archived HTML ---
+  if (urlDate && urlDate !== today) {
+    fetch(`archive/${urlDate}.html`, { cache: "no-store" })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      })
+      .then(html => {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const archivedMain = doc.getElementById("brief-main");
+        if (archivedMain) {
+          elMain.innerHTML = archivedMain.innerHTML;
+          // Scroll to top so user sees hero
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+        setDateLabel(currentDate);
+      })
+      .catch(err => {
+        elMain.innerHTML = `
+          <section class="stack" style="padding: 40px 20px; text-align: center;">
+            <div class="label">Архив</div>
+            <h2 style="margin: 12px 0;">Бриф за ${fmtRuFull(currentDate)} недоступен</h2>
+            <p style="color: var(--muted); margin: 0 0 20px;">${err.message}</p>
+            <a href="?" style="color: var(--blue);">← к сегодняшнему брифу</a>
+          </section>`;
+        setDateLabel(currentDate);
+      });
+  }
+})();
+</script>
 </body>
 </html>
