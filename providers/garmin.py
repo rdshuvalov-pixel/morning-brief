@@ -26,18 +26,32 @@ class GarminProvider(DataProvider):
         self.email = GARMIN_EMAIL
         self.password = GARMIN_PASSWORD
 
-    async def fetch(self) -> ProviderResult:
+    async def fetch(self, target_date: date | None = None) -> ProviderResult:
+        """Fetch Garmin metrics for a given date.
+
+        Args:
+            target_date: Day to fetch. If None, defaults to yesterday
+                         (preserves the original behaviour for callers
+                         that want a closed/settled day).
+
+        Why this matters: Garmin Connect returns same-day data as soon as
+        the user wakes up — sleep, HRV, RHR, SpO2, training readiness,
+        and the morning Body Battery peak are all available. The previous
+        version hard-coded yesterday, which silently dropped every morning
+        before the day "closed".
+        """
         try:
             client = await self._auth()
             if not client:
                 return self._fail("Garmin auth failed")
 
-            yesterday = date.today() - timedelta(days=1)
-            yesterday_str = yesterday.isoformat()
+            if target_date is None:
+                target_date = date.today() - timedelta(days=1)
+            target_str = target_date.isoformat()
 
-            sleep_data = await self._get_sleep(client, yesterday_str)
-            hrv_data = await self._get_hrv_premium(client, yesterday_str)
-            daily_data = await self._get_daily_stats(client, yesterday_str)
+            sleep_data = await self._get_sleep(client, target_str)
+            hrv_data = await self._get_hrv_premium(client, target_str)
+            daily_data = await self._get_daily_stats(client, target_str)
 
             data = {**(sleep_data or {}), **(hrv_data or {}), **(daily_data or {})}
             if not data:
@@ -130,13 +144,33 @@ class GarminProvider(DataProvider):
                 return client.get_body_battery(date_str)
 
             body_battery_data = await asyncio.get_event_loop().run_in_executor(None, _call_body_battery)
-            # Use peak charge (Garmin API field `max`) — for the morning brief
-            # the end-of-day `charged` value is already drained overnight,
-            # so `max` is the meaningful number.
+            # Body Battery resolution order:
+            #   1. peak from `bodyBatteryValuesArray` (always present when the
+            #      day has any data; matches what the user sees on the watch)
+            #   2. closed-day `max` field (Garmin fills it when the day settles)
+            #   3. closed-day `charged` field (drained end-of-day value —
+            #      often much lower than what the watch shows in the morning)
+            #
+            # Rationale: this number feeds the morning brief and tells the
+            # user how charged their body is. Peak-from-array matches what
+            # they see on the watch face at the moment of reading. Using
+            # `charged` here is misleading because Garmin returns it even
+            # mid-day as a drain estimate, not a settled value.
             body_battery = None
-            if body_battery_data and isinstance(body_battery_data, list) and len(body_battery_data) > 0:
+            if body_battery_data and isinstance(body_battery_data, list) and body_battery_data:
                 sample = body_battery_data[0]
-                body_battery = sample.get("max") if sample.get("max") is not None else sample.get("charged")
+                arr = sample.get("bodyBatteryValuesArray") or sample.get("bodyBatteryValues") or []
+                levels = [
+                    v[1] for v in arr
+                    if isinstance(v, (list, tuple)) and len(v) >= 2
+                    and isinstance(v[1], (int, float))
+                ]
+                if levels:
+                    body_battery = int(max(levels))
+                if body_battery is None:
+                    body_battery = sample.get("max")
+                if body_battery is None:
+                    body_battery = sample.get("charged")
 
             # SpO2
             spo2 = d.get("averageSpo2")
