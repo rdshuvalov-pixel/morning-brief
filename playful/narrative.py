@@ -267,7 +267,7 @@ async def _compose_block_async(block_name: str, facts: dict[str, Any], *, timeou
 
 
 async def compose_all_opinions(facts_by_block: dict[str, dict[str, Any]]) -> dict[str, str | None]:
-    """Fire all per-block opinion calls sequentially with small jitter.
+    """Fire all per-block opinion calls sequentially.
 
     Args:
         facts_by_block: {block_name: facts_dict} for each block in OPINION_BLOCKS.
@@ -275,16 +275,14 @@ async def compose_all_opinions(facts_by_block: dict[str, dict[str, Any]]) -> dic
     Returns:
         {block_name: opinion_str_or_None}. Missing/empty opinions stay None.
 
-    Why sequential: Hermes gateway serializes backend calls anyway, and 5
-    concurrent `hermes -z` processes hammer it and time out (observed
-    2026-06-28: all 5 timed out at 30s). Sequential with 0.2s stagger
-    completes in ~40s wall-clock and is reliable.
+    Sequential because Hermes gateway serializes backend calls anyway and
+    5 concurrent `hermes -z` processes hammer it and time out. Each call
+    ~5-15s wall-clock; 5 in a row = ~30-75s total. No jitter — Hermes
+    handles back-to-back fine once the previous one finishes.
     """
-    import asyncio as _aio
     out: dict[str, str | None] = {}
     for name in OPINION_BLOCKS:
         out[name] = await _compose_block_async(name, facts_by_block.get(name, {}))
-        await _aio.sleep(0.2)  # small stagger to avoid hammering
     return out
 
 
