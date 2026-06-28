@@ -1,10 +1,10 @@
-.env
-.env.local
+# Python bytecode
 __pycache__/
+*.py[cod]
 *.pyc
-*.pyo
-.venv/
-venv/
-*.bin
-*.zip
-db/*.db
+
+# Logs (Hermes cron writes here)
+logs/
+
+# Vercel
+.vercel/
