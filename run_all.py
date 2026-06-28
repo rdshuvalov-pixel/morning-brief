@@ -94,24 +94,28 @@ async def _run_provider(provider, name: str, target_date: date) -> tuple[str, ob
 
 
 def _write_provider(brief_id: str, target: date, name: str, data) -> bool:
-    """Write provider data into its Supabase table. Returns True on success."""
+    """Write provider data into its Supabase table. Returns True on success.
+
+    Each provider returns a dict from fetch(); we extract the list payload
+    by provider name. Empty/missing lists degrade gracefully (0 rows).
+    """
     try:
         if name == "garmin":
             upsert_garmin_metrics(brief_id, target.isoformat(), data)
         elif name == "helio":
             upsert_helio_metrics(brief_id, target.isoformat(), data)
         elif name == "food":
-            upsert_food_log(brief_id, (target - timedelta(days=1)).isoformat(),
-                            data if isinstance(data, list) else [])
+            entries = data.get("entries", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+            upsert_food_log(brief_id, (target - timedelta(days=1)).isoformat(), entries)
         elif name == "weather":
-            upsert_weather_log(brief_id, target.isoformat(),
-                               data if isinstance(data, list) else [])
+            periods = data.get("periods", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+            upsert_weather_log(brief_id, target.isoformat(), periods)
         elif name == "calendar":
-            upsert_calendar_events(brief_id, target.isoformat(),
-                                   data if isinstance(data, list) else [])
+            events = data.get("events", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+            upsert_calendar_events(brief_id, target.isoformat(), events)
         elif name == "tasks":
-            upsert_tasks(brief_id, target.isoformat(),
-                         data if isinstance(data, list) else [])
+            tasks = data.get("tasks", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+            upsert_tasks(brief_id, target.isoformat(), tasks)
         else:
             logger.warning("[%s] no writer registered, skipped", name)
             return False
