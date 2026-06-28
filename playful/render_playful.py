@@ -24,6 +24,9 @@ from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Путь к шаблону
 _HERE = Path(__file__).parent
@@ -1070,6 +1073,75 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         or ((helio_yesterday or {}).get("spo2"))
     )
 
+    # ── Narrative (LLM via Hermes gateway) ──
+    # Compose a facts dict and ask Hermes to generate the 4 narrative fields.
+    # On any failure (hermes missing / timeout / bad JSON), fall back to the
+    # short static defaults below. Re-runs produce fresh text each time
+    # (no cache) by design — see memory note "narrative no cache 28.06".
+    from playful.narrative import compose as _narrative_compose
+
+    garmin_today = _map_garmin_row(garmin_row) or {}
+    sleep_min = garmin_today.get("sleep_duration_min")
+    sleep_label = _minutes_to_label(sleep_min) if sleep_min else None
+    sleep_score = garmin_today.get("sleep_score")
+    sleep_pill_text, _ = _sleep_pill(sleep_score) if sleep_score is not None else (None, None)
+    # steps_yesterday + balance: we need the same numbers the movement block uses
+    movement_src = _map_garmin_row(garmin_yesterday) or {}
+    helio_movement_src = helio_yesterday or {}
+    steps_yest = movement_src.get("totalSteps") or helio_movement_src.get("steps")
+    kcal_burned_yest = (movement_src.get("resting_kcal") or 0) + (movement_src.get("active_kcal") or 0)
+    kcal_eaten_yest = sum((e.get("kcal") or 0) for e in _map_food_rows(food_rows))
+    balance_yest = kcal_eaten_yest - kcal_burned_yest if (kcal_eaten_yest or kcal_burned_yest) else None
+
+    weather_today_str = None
+    if weather_rows:
+        day_w = next((w for w in weather_rows if w.get("period") == "day"), None)
+        if day_w:
+            weather_today_str = f"{day_w.get('condition', '?')}, {day_w.get('temp')}°"
+
+    tasks_sorted_for_narr = sorted(
+        _map_task_rows(task_rows),
+        key=lambda t: (t.get("priority") or 4, t.get("title") or ""),
+    )
+    top_task_title = (tasks_sorted_for_narr[0].get("title") or "") if tasks_sorted_for_narr else None
+
+    narrative_facts = {
+        "brief_date": brief_date.isoformat(),
+        "body_battery": garmin_today.get("body_battery"),
+        "body_battery_delta": body_battery_delta,
+        "sleep_label": sleep_label,
+        "sleep_score": sleep_score,
+        "sleep_pill": sleep_pill_text,
+        "hrv": garmin_today.get("hrv"),
+        "rhr": garmin_today.get("rhr"),
+        "stress": garmin_today.get("stress"),
+        "spo2": garmin_today.get("spo2"),
+        "steps_yesterday": steps_yest,
+        "balance": balance_yest,
+        "weather_summary": weather_today_str,
+        "tasks_count": len(task_rows),
+        "top_task": top_task_title,
+    }
+
+    narrative = _narrative_compose(narrative_facts)
+    if narrative:
+        _narrative_headline = narrative["headline"]
+        _narrative_summary = narrative["lead"]
+        _narrative_footer_title = narrative["footer_title"]
+        _narrative_footer_text = narrative["footer_text"]
+        logger.info("narrative: Hermes returned 4 fields")
+    else:
+        _narrative_headline = f"Утро {brief_date.strftime('%-d %B')}"
+        _narrative_summary = (
+            "Утренний бриф собран из живых данных. "
+            "Нарратив-NLG не подключен — текст ниже дефолтный."
+        )
+        _narrative_footer_title = "Хорошее начало"
+        _narrative_footer_text = (
+            "Бриф собран. Проверь ресурс утром и не отдавай сильное утро мелочам."
+        )
+        logger.info("narrative: Hermes unavailable, using fallback defaults")
+
     return {
         "brief_date": brief_date,
         "garmin": _map_garmin_row(garmin_row),
@@ -1087,15 +1159,10 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         "spo2_yesterday": spo2_yesterday,
         "body_battery_delta": body_battery_delta,
         "body_battery_yesterday": body_battery_yesterday,
-        "narrative_headline": f"Утро {brief_date.strftime('%-d %B')}",
-        "narrative_summary": (
-            "Утренний бриф собран из живых данных. "
-            "Нарратив-NLG не подключен — текст ниже дефолтный."
-        ),
-        "narrative_footer_title": "Хорошее начало",
-        "narrative_footer_text": (
-            "Бриф собран. Проверь ресурс утром и не отдавай сильное утро мелочам."
-        ),
+        "narrative_headline": _narrative_headline,
+        "narrative_summary": _narrative_summary,
+        "narrative_footer_title": _narrative_footer_title,
+        "narrative_footer_text": _narrative_footer_text,
         "focus_window": "Focus 08:30–11:30",
     }
 
