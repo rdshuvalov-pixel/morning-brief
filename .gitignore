@@ -8,3 +8,14 @@ logs/
 
 # Vercel
 .vercel/
+
+# Python venv
+.venv/
+venv/
+
+# Garmin/Zepp temp + credentials
+.env
+*.bin
+*.zip
+gps_*.bin
+*_pak.bin
