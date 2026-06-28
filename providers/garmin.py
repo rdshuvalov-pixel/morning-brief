@@ -92,7 +92,21 @@ class GarminProvider(DataProvider):
             total_sec = deep + light + rem + awake
             sleep_duration_min = total_sec // 60 if total_sec else 0
 
-            sleep_score = sleep.get("sleepScore", {}).get("overall") if isinstance(sleep.get("sleepScore"), dict) else None
+            # Sleep score resolution (Garmin changed this endpoint shape):
+            #   1. NEW path (2024+): dailySleepDTO.sleepScores.overall.value
+            #   2. OLD path: sleep["sleepScore"]["overall"]  (kept for back-compat)
+            # Some days return None while the day is still unclosed — that's
+            # expected, not a bug.
+            sleep_score = None
+            sleep_scores_obj = dto.get("sleepScores") if isinstance(dto, dict) else None
+            if isinstance(sleep_scores_obj, dict):
+                overall = sleep_scores_obj.get("overall")
+                if isinstance(overall, dict) and overall.get("value") is not None:
+                    sleep_score = overall["value"]
+            if sleep_score is None:
+                legacy = sleep.get("sleepScore")
+                if isinstance(legacy, dict):
+                    sleep_score = legacy.get("overall")
 
             deep_sleep_pct = None
             if total_sec:
