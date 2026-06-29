@@ -152,12 +152,22 @@ def upsert_weather_log(brief_id: str, date_val: str, entries: list[dict[str, Any
     return result.data if hasattr(result, 'data') else result
 
 
+# Column whitelists per list-table — protects against silent zero-insert
+# when provider emits a field not in the schema (PGRST204 "column not found").
+_CALENDAR_EVENT_COLS = ("title", "start_time", "duration_minutes")
+_TASK_COLS = ("title", "priority")
+
+
 def upsert_calendar_events(brief_id: str, date_val: str, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     sb = get_client()
     sb.table("calendar_events").delete().eq("date", str(date_val)).execute()
     if not events:
         return []
-    rows = [{"brief_id": brief_id, "date": str(date_val), **e} for e in events]
+    rows = [
+        {"brief_id": brief_id, "date": str(date_val),
+         **{k: e.get(k) for k in _CALENDAR_EVENT_COLS}}
+        for e in events
+    ]
     result = sb.table("calendar_events").insert(rows).execute()
     return result.data if hasattr(result, 'data') else result
 
@@ -167,7 +177,11 @@ def upsert_tasks(brief_id: str, date_val: str, tasks: list[dict[str, Any]]) -> l
     sb.table("tasks").delete().eq("date", str(date_val)).execute()
     if not tasks:
         return []
-    rows = [{"brief_id": brief_id, "date": str(date_val), **t} for t in tasks]
+    rows = [
+        {"brief_id": brief_id, "date": str(date_val),
+         **{k: t.get(k) for k in _TASK_COLS}}
+        for t in tasks
+    ]
     result = sb.table("tasks").insert(rows).execute()
     return result.data if hasattr(result, 'data') else result
 
