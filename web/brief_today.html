@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Morning Brief — 28 June</title>
+  <title>Morning Brief — 29 June</title>
   <style>
     :root {
       --bg-1: #fff3d3;
@@ -96,6 +96,19 @@
       justify-content: space-between;
       gap: 12px;
       align-items: start;
+      /* батарейка справа от заголовка, на одной высоте */
+    }
+    .battery {
+      width: 116px;
+      max-width: 36%;             /* страховка: на совсем узких не уехать */
+      aspect-ratio: 1;
+      border-radius: 32px;
+      padding: 14px;
+      background:
+        radial-gradient(circle at center, rgba(240, 103, 87, 0.12), transparent 58%),
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,246,240,0.92));
+      border: 1px solid rgba(255,255,255,0.58);
+      flex-shrink: 1;             /* не выталкивать за контейнер */
     }
 
     h1 {
@@ -114,25 +127,13 @@
       max-width: 235px;
     }
 
-    .battery {
-      width: 116px;
-      aspect-ratio: 1;
-      border-radius: 32px;
-      padding: 14px;
-      background:
-        radial-gradient(circle at center, rgba(240, 103, 87, 0.12), transparent 58%),
-        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,246,240,0.92));
-      border: 1px solid rgba(255,255,255,0.58);
-      flex-shrink: 0;
-    }
-
     .battery-ring {
       width: 100%;
       height: 100%;
       border-radius: 50%;
       background:
         radial-gradient(circle closest-side, #fffaf6 68%, transparent 69% 100%),
-        conic-gradient(var(--good) 0 349deg, rgba(45,155,125,0.14) 349deg 360deg);
+        conic-gradient(var(--good) 0 335deg, rgba(45,155,125,0.14) 335deg 360deg);
       display: grid;
       place-items: center;
       text-align: center;
@@ -379,6 +380,45 @@
       white-space: nowrap;
     }
 
+    .tasks-summary {
+      margin-top: 14px;
+      padding: 14px 14px 12px;
+      border-radius: 14px;
+      background: rgba(34, 27, 51, 0.04);
+      border-left: 3px solid var(--blue);
+    }
+    .tasks-summary-title {
+      color: var(--ink);
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .tasks-summary-text {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .block-opinion {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(124, 164, 255, 0.08);
+      border-left: 2px solid var(--blue);
+      color: var(--ink);
+      font-size: 13.5px;
+      line-height: 1.4;
+      font-style: italic;
+    }
+    .block-opinion::before {
+      content: "✦ ";
+      color: var(--blue);
+      font-style: normal;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
     .progress-group {
       display: grid;
       gap: 12px;
@@ -495,32 +535,138 @@
       padding: 8px 4px;
     }
 
+    @media (max-width: 380px) {
+      /* очень узкий мобиль — батарейка справа меньше, текст расширяется */
+      .battery { width: 88px; padding: 10px; }
+      .battery-ring strong { font-size: 22px; }
+      .battery-ring span { font-size: 9px; }
+      h1 { font-size: 30px; max-width: none; }
+      .lead { max-width: none; font-size: 14px; }
+    }
     @media (max-width: 360px) {
       .split { grid-template-columns: 1fr; }
       .weather { grid-template-columns: 1fr; }
       .hero-grid { grid-template-columns: repeat(2, 1fr); }
     }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(34, 27, 51, 0.08);
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .topbar-arrow {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 24px;
+      line-height: 1;
+      width: 32px;
+      text-align: center;
+      user-select: none;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .topbar-arrow:hover { color: var(--ink); }
+    .topbar-arrow.disabled { opacity: 0.25; pointer-events: none; }
+    .topbar-date { flex: 1; text-align: center; font-weight: 600; font-size: 15px; }
+    .topbar-all {
+      color: var(--blue);
+      background: none;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+    .topbar-all:hover { background: rgba(34, 116, 165, 0.08); }
+
+    .archive-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .archive-modal-inner {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      max-height: 80vh;
+      max-width: 360px;
+      width: 100%;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    }
+    .archive-modal h3 { margin: 0 0 12px; font-size: 18px; }
+    .archive-list { list-style: none; padding: 0; margin: 0 0 12px; }
+    .archive-list li a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 8px;
+      text-decoration: none;
+      color: var(--ink);
+      font-size: 15px;
+    }
+    .archive-list li a:hover { background: rgba(0, 0, 0, 0.04); }
+    .archive-list li a.current {
+      background: rgba(34, 116, 165, 0.10);
+      color: var(--blue);
+      font-weight: 600;
+    }
+    .archive-close {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      background: var(--blue);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: inherit;
+    }
   </style>
 </head>
 <body>
-<main class="phone">
+
+<nav class="topbar" id="topbar">
+  <a href="#" id="topbar-prev" class="topbar-arrow" aria-label="Предыдущий день">‹</a>
+  <span id="topbar-date" class="topbar-date">Сегодня</span>
+  <a href="#" id="topbar-next" class="topbar-arrow" aria-label="Следующий день">›</a>
+  <button type="button" id="topbar-all" class="topbar-all" aria-label="Все брифы">все</button>
+</nav>
+
+<main class="phone" id="brief-main">
 
   
   <section class="hero">
     <div class="hero-top">
       <div>
         
-        <div class="hero-badge">28 June</div>
+        <div class="hero-badge">29 June</div>
 
-        <h1>Утро 28 June</h1>
-        <p class="lead">Утренний бриф собран из живых данных. Нарратив-NLG не подключен — текст ниже дефолтный.</p>
+        <h1>8ч 17м. Проснись и жни</h1>
+        <p class="lead">Сон 90/100 — стабильный, глубокий. Батарейка 93 после −4 за день, пульс 49 — тело ночью работало как надо. Ступени пройдены: 6 914 шагов и −566 ккал долг. Это не отдых, это ты в кредит у самого себя.</p>
       </div>
 
       
       <div class="battery">
         <div class="battery-ring">
           <div>
-            <strong>97</strong>
+            <strong>93</strong>
             <span>Battery</span>
           </div>
         </div>
@@ -531,20 +677,24 @@
     <div class="hero-grid">
       <div class="hero-stat">
         <div class="label">Сон</div>
-        <div class="value">5ч 58м</div>
-        <div class="meta">Sleep score 77</div>
+        <div class="value">8ч 17м</div>
+        <div class="meta">Sleep score 90</div>
       </div>
       <div class="hero-stat">
         <div class="label">HRV</div>
-        <div class="value">70</div>
+        <div class="value">59</div>
         <div class="meta">—</div>
       </div>
       <div class="hero-stat">
         <div class="label">Пульс</div>
-        <div class="value">46</div>
+        <div class="value">49</div>
         <div class="meta">Resting bpm</div>
       </div>
     </div>
+
+    
+      <div class="block-opinion">93 батареи и 8 часов сна — это не подарок, это инвестиция. Грузи главное до обеда, потом организм возьмёт своё.</div>
+    
   </section>
 
   <section class="stack">
@@ -556,7 +706,7 @@
           <div class="label">Ночь</div>
           <div class="title">Сон и восстановление</div>
         </div>
-        <div class="pill pill-amber">Night Uneven</div>
+        <div class="pill pill-good">Night Stable</div>
       </div>
 
       <div class="split">
@@ -564,9 +714,9 @@
         <div class="soft">
           <div class="label">Sleep Stages</div>
           <div class="sleep-bar">
-            <div class="stage-deep"  style="width:25%;"></div>
+            <div class="stage-deep"  style="width:19%;"></div>
             <div class="stage-rem"   style="width:22%;"></div>
-            <div class="stage-light" style="width:50%;"></div>
+            <div class="stage-light" style="width:56%;"></div>
             <div class="stage-awake" style="width:3%;"></div>
           </div>
           <div class="axis">
@@ -575,11 +725,11 @@
             <span>07:00</span>
           </div>
           <div class="legend">
-            <span><i style="background:#8f67d8;"></i>Deep 1ч 30м</span>
-            <span><i style="background:#ff8e6f;"></i>REM 1ч 19м</span>
-            <span><i style="background:#ffb37e;"></i>Light 2ч 58м</span>
+            <span><i style="background:#8f67d8;"></i>Deep 1ч 36м</span>
+            <span><i style="background:#ff8e6f;"></i>REM 1ч 49м</span>
+            <span><i style="background:#ffb37e;"></i>Light 4ч 37м</span>
             
-              <span><i style="background:rgba(34,27,51,0.18);"></i>Awake 0ч 11м</span>
+              <span><i style="background:rgba(34,27,51,0.18);"></i>Awake 0ч 15м</span>
             
           </div>
         </div>
@@ -587,7 +737,7 @@
         
         <div class="soft">
           <div class="label">SpO2</div>
-          <div class="value" style="font-size:30px;">96%</div>
+          <div class="value" style="font-size:30px;">95%</div>
           
             <div class="meta">стабильно всю ночь</div>
           
@@ -615,10 +765,10 @@
       <div class="metrics-2">
         <div class="metric-box">
           <div class="label">Body Battery · пик</div>
-          <div class="value">97</div>
+          <div class="value">93</div>
           
           
-            <div class="delta delta-rose">-3 vs вчера</div>
+            <div class="delta delta-rose">-4 vs вчера</div>
           
         </div>
 
@@ -636,7 +786,7 @@
 
         <div class="metric-box">
           <div class="label">SpO2 <span style="font-size:9px; color:var(--muted-2);">(вчера)</span></div>
-          <div class="value">96%</div>
+          <div class="value">95%</div>
           <div class="meta">Ровное дыхание</div>
         </div>
       </div>
@@ -655,9 +805,86 @@
       
         <p class="section-empty">Нет событий на сегодня — свободный день.</p>
       
+
+      
+        <div class="block-opinion">Пустой день — это не выходной, а полигон. Бери главную задачу, отключи чат на 4 часа и сделай её до обеда.</div>
+      
     </article>
 
     
+    
+    <article class="card">
+      <div class="card-head">
+        <div>
+          <div class="label">Задачи</div>
+          <div class="title">На сегодня</div>
+        </div>
+        <div class="pill pill-blue">38 задач</div>
+      </div>
+      <div class="list">
+        
+          <div class="item">
+            <div class="item-priority p3">p3</div>
+            <div style="flex:1;">
+              <strong>Изучить dikidi_youtube_review_research.md</strong>
+            </div>
+            <div class="when">
+              
+            </div>
+          </div>
+        
+          <div class="item">
+            <div class="item-priority p3">p3</div>
+            <div style="flex:1;">
+              <strong>Исследовать [GitHub - Panniantong/Agent-Reach: Give your AI agent eyes to see t…</strong>
+            </div>
+            <div class="when">
+              
+            </div>
+          </div>
+        
+          <div class="item">
+            <div class="item-priority p4">p4</div>
+            <div style="flex:1;">
+              <strong>1 видеообзор</strong>
+            </div>
+            <div class="when">
+              
+            </div>
+          </div>
+        
+          <div class="item">
+            <div class="item-priority p4">p4</div>
+            <div style="flex:1;">
+              <strong>API поиск на Reddit чтобы сделать свой агрегатор</strong>
+            </div>
+            <div class="when">
+              
+            </div>
+          </div>
+        
+          <div class="item">
+            <div class="item-priority p4">p4</div>
+            <div style="flex:1;">
+              <strong>Агрегатор навыков и поисковик</strong>
+            </div>
+            <div class="when">
+              
+            </div>
+          </div>
+        
+      </div>
+
+      
+      <div class="tasks-summary">
+        <div class="tasks-summary-title">dikidi — не откладывай на вечер</div>
+        <p class="tasks-summary-text">Топ-задача ждёт: изучи dikidi_youtube_review_research.md. Облачно, 25° — без оправданий за окно. Возьми и не отпускай, пока не разнесёшь файл по полочкам. 38 задач не сделают себя сами.</p>
+      </div>
+
+      
+        <div class="block-opinion">38 задач, но две p3 — это твой сюжет на сегодня. Закрой топ про dikidi_review, остальное не разбегается.</div>
+      
+    </article>
     
 
     
@@ -674,28 +901,32 @@
         <div class="progress-row">
           <div class="progress-head">
             <span>Шаги</span>
-            <span>78 / 10000</span>
+            <span>6 914 / 10000</span>
           </div>
-          <div class="track"><div class="fill fill-steps" style="width:1%;"></div></div>
+          <div class="track"><div class="fill fill-steps" style="width:69%;"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-head">
             <span>Потратил</span>
-            <span>739 ккал</span>
+            <span>2 234 ккал</span>
           </div>
-          <div class="track"><div class="fill fill-burn" style="width:25%;"></div></div>
+          <div class="track"><div class="fill fill-burn" style="width:75%;"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-head">
             <span>Съел</span>
-            <span>2 415 ккал</span>
+            <span>1 668 ккал</span>
           </div>
-          <div class="track"><div class="fill fill-eat" style="width:81%;"></div></div>
+          <div class="track"><div class="fill fill-eat" style="width:56%;"></div></div>
         </div>
         
-          <div class="meta">Баланс +1676 ккал. Профицит — активнее подвигайся в течение дня.</div>
+          <div class="meta">Баланс −566 ккал. Дефицит — стоит закрыть окно плотным ужином.</div>
         
       </div>
+
+      
+        <div class="block-opinion">Дефицит 566 ккал на 7к шагов — нормально, но сегодня поешь нормально, иначе к вечеру сожрёшь всё подряд.</div>
+      
     </article>
 
     
@@ -706,24 +937,179 @@
           <div class="title">Что снаружи</div>
         </div>
         
+          <div class="pill pill-blue">Wind 30 km/h</div>
+        
       </div>
 
       <div class="weather">
+        
+          <div class="weather-card">
+            <div class="weather-icon">☀️</div>
+            <div class="label">Утро</div>
+            <div class="weather-temp">20°</div>
+            <div class="meta">Небольшая облачность</div>
+          </div>
+        
+          <div class="weather-card">
+            <div class="weather-icon">☀️</div>
+            <div class="label">День</div>
+            <div class="weather-temp">25°</div>
+            <div class="meta">Небольшая облачность</div>
+          </div>
+        
+          <div class="weather-card">
+            <div class="weather-icon">☀️</div>
+            <div class="label">Вечер</div>
+            <div class="weather-temp">20°</div>
+            <div class="meta">Ясно</div>
+          </div>
         
       </div>
 
       
       
+        <div class="weather-vs-yesterday">утром на 3° прохладнее; днём так же; вечером на 2° прохладнее.</div>
+      
+
+      
+        <div class="block-opinion">Облачно и 25 — не повод сидеть, повод выйти. Свет есть, тело есть, сцена готова.</div>
+      
     </article>
 
-    
-    <article class="footer">
-      <div class="label">Общая сводка</div>
-      <div class="value" style="color:#fff3ea; font-size:28px; margin-top:6px;">Хорошее начало</div>
-      <p>Бриф собран. Проверь ресурс утром и не отдавай сильное утро мелочам.</p>
-    </article>
-
-  </section>
+    </section>
 </main>
+
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const urlDate = params.get("date");
+  // Lisbon date today (matches /etc/cron.d... no, matches archive_brief.py)
+  function lisbonToday() {
+    try {
+      const fmt = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Lisbon",
+        year: "numeric", month: "2-digit", day: "2-digit",
+      });
+      return fmt.format(new Date());  // YYYY-MM-DD
+    } catch (_) {
+      const d = new Date();
+      return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+    }
+  }
+  const today = lisbonToday();
+  const currentDate = urlDate || today;
+
+  const elPrev   = document.getElementById("topbar-prev");
+  const elNext   = document.getElementById("topbar-next");
+  const elDate   = document.getElementById("topbar-date");
+  const elAll    = document.getElementById("topbar-all");
+  const elMain   = document.getElementById("brief-main");
+
+  function fmtRu(iso) {
+    const [y,m,d] = iso.split("-");
+    const months = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+    return `${parseInt(d,10)} ${months[parseInt(m,10)-1]}`;
+  }
+  function fmtRuFull(iso) {
+    const [y,m,d] = iso.split("-");
+    const months = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+    return `${parseInt(d,10)} ${months[parseInt(m,10)-1]} ${y}`;
+  }
+
+  function setDateLabel(iso) {
+    elDate.textContent = (iso === today) ? `${fmtRu(iso)} · сегодня` : fmtRu(iso);
+  }
+
+  function goTo(dateStr) {
+    if (!dateStr) return;
+    const u = new URL(location.href);
+    u.searchParams.set("date", dateStr);
+    location.href = u.toString();
+  }
+
+  function goToday() {
+    const u = new URL(location.href);
+    u.searchParams.delete("date");
+    location.href = u.toString();
+  }
+
+  // --- Load manifest ---
+  let dates = [today];  // safe fallback
+  fetch("archive/manifest.json", { cache: "no-store" })
+    .then(r => r.ok ? r.json() : { dates: [today] })
+    .then(j => { dates = (j.dates || [today]).slice(); })
+    .catch(() => { /* keep fallback */ })
+    .finally(() => {
+      // Make sure today is in the list (it'll be archived at 07:30)
+      if (!dates.includes(today)) dates.unshift(today);
+      const idx = dates.indexOf(currentDate);
+
+      // Wire prev/next
+      elPrev.onclick = (e) => { e.preventDefault(); if (idx > 0) goTo(dates[idx-1]); };
+      elNext.onclick = (e) => { e.preventDefault(); if (idx >= 0 && idx < dates.length-1) goTo(dates[idx+1]); };
+      if (idx <= 0) { elPrev.classList.add("disabled"); elPrev.setAttribute("aria-disabled", "true"); }
+      if (idx < 0 || idx >= dates.length-1) { elNext.classList.add("disabled"); elNext.setAttribute("aria-disabled", "true"); }
+      elDate.onclick = goToday;
+      elDate.style.cursor = "pointer";
+
+      setDateLabel(currentDate);
+    });
+
+  // --- Archive modal ---
+  elAll.onclick = (e) => {
+    e.preventDefault();
+    const modal = document.createElement("div");
+    modal.className = "archive-modal";
+    modal.innerHTML = `
+      <div class="archive-modal-inner">
+        <h3>Все брифы</h3>
+        <ul class="archive-list">
+          ${dates.map(d => {
+            const cls = (d === currentDate) ? ' class="current"' : '';
+            const label = (d === today) ? `${fmtRuFull(d)} · сегодня` : fmtRuFull(d);
+            return `<li><a href="?date=${d}"${cls}>${label}</a></li>`;
+          }).join("")}
+        </ul>
+        <button type="button" class="archive-close">закрыть</button>
+      </div>`;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector(".archive-close").onclick = close;
+    modal.onclick = (ev) => { if (ev.target === modal) close(); };
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); }
+    });
+  };
+
+  // --- If ?date= is set, swap main content with archived HTML ---
+  if (urlDate && urlDate !== today) {
+    fetch(`archive/${urlDate}.html`, { cache: "no-store" })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      })
+      .then(html => {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const archivedMain = doc.getElementById("brief-main");
+        if (archivedMain) {
+          elMain.innerHTML = archivedMain.innerHTML;
+          // Scroll to top so user sees hero
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+        setDateLabel(currentDate);
+      })
+      .catch(err => {
+        elMain.innerHTML = `
+          <section class="stack" style="padding: 40px 20px; text-align: center;">
+            <div class="label">Архив</div>
+            <h2 style="margin: 12px 0;">Бриф за ${fmtRuFull(currentDate)} недоступен</h2>
+            <p style="color: var(--muted); margin: 0 0 20px;">${err.message}</p>
+            <a href="?" style="color: var(--blue);">← к сегодняшнему брифу</a>
+          </section>`;
+        setDateLabel(currentDate);
+      });
+  }
+})();
+</script>
 </body>
 </html>
