@@ -35,7 +35,8 @@ from db.client import (  # noqa: E402
     upsert_food_log, upsert_weather_log, upsert_calendar_events, upsert_tasks,
 )
 from providers.garmin import GarminProvider    # noqa: E402
-from providers.helio import HelioProvider      # noqa: E402
+# HelioProvider disabled 2026-06-29 — браслет больше не носим, данные не нужны.
+# from providers.helio import HelioProvider      # noqa: E402
 from providers.food import FoodProvider        # noqa: E402
 from providers.weather import WeatherProvider  # noqa: E402
 from providers.calendar import CalendarProvider  # noqa: E402
@@ -149,7 +150,7 @@ async def main() -> int:
 
     provider_factories = {
         "garmin":   GarminProvider,
-        "helio":    HelioProvider,
+        # "helio":    HelioProvider,  # disabled 2026-06-29 — браслет больше не носим
         "food":     FoodProvider,
         "weather":  WeatherProvider,
         "calendar": CalendarProvider,
