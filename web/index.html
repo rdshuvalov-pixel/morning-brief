@@ -133,7 +133,7 @@
       border-radius: 50%;
       background:
         radial-gradient(circle closest-side, #fffaf6 68%, transparent 69% 100%),
-        conic-gradient(var(--good) 0 335deg, rgba(45,155,125,0.14) 335deg 360deg);
+        conic-gradient(var(--amber) 0 310deg, rgba(211,138,44,0.14) 310deg 360deg);
       display: grid;
       place-items: center;
       text-align: center;
@@ -658,15 +658,15 @@
         
         <div class="hero-badge">30 June</div>
 
-        <h1>Утро 30 June</h1>
-        <p class="lead">Утренний бриф собран из живых данных. Нарратив-NLG не подключен — текст ниже дефолтный.</p>
+        <h1>86 — и топ-задача в комплекте</h1>
+        <p class="lead">86/100 и минус 55 ккал. Тело в долгу, но мозг уже включился — HRV 60, пульс 50. Сон рваный (7ч 14м, Night Uneven), и вчера ты уже отшагал 14 487. Пора закрыть гештальт по Vivid Money.</p>
       </div>
 
       
       <div class="battery">
         <div class="battery-ring">
           <div>
-            <strong>93</strong>
+            <strong>86</strong>
             <span>Battery</span>
           </div>
         </div>
@@ -677,23 +677,23 @@
     <div class="hero-grid">
       <div class="hero-stat">
         <div class="label">Сон</div>
-        <div class="value">—</div>
-        <div class="meta">Sleep score —</div>
+        <div class="value">7ч 14м</div>
+        <div class="meta">Sleep score 83</div>
       </div>
       <div class="hero-stat">
         <div class="label">HRV</div>
-        <div class="value">—</div>
+        <div class="value">60</div>
         <div class="meta">—</div>
       </div>
       <div class="hero-stat">
         <div class="label">Пульс</div>
-        <div class="value">—</div>
+        <div class="value">50</div>
         <div class="meta">Resting bpm</div>
       </div>
     </div>
 
     
-      <div class="block-opinion">Данных нет — значит сегодня день решений вслепую. Доверяй интуиции, главное — начни.</div>
+      <div class="block-opinion">86 батарейка и HRV 60 — ресурс есть, не размазывай его по мелочам. Один главный результат до обеда, остальное вечером.</div>
     
   </section>
 
@@ -706,7 +706,7 @@
           <div class="label">Ночь</div>
           <div class="title">Сон и восстановление</div>
         </div>
-        <div class="pill pill-muted">Night —</div>
+        <div class="pill pill-amber">Night Uneven</div>
       </div>
 
       <div class="split">
@@ -714,10 +714,10 @@
         <div class="soft">
           <div class="label">Sleep Stages</div>
           <div class="sleep-bar">
-            <div class="stage-deep"  style="width:35%;"></div>
-            <div class="stage-rem"   style="width:23%;"></div>
-            <div class="stage-light" style="width:42%;"></div>
-            <div class="stage-awake" style="width:0%;"></div>
+            <div class="stage-deep"  style="width:14%;"></div>
+            <div class="stage-rem"   style="width:22%;"></div>
+            <div class="stage-light" style="width:61%;"></div>
+            <div class="stage-awake" style="width:3%;"></div>
           </div>
           <div class="axis">
             <span>23:18</span>
@@ -725,9 +725,11 @@
             <span>07:00</span>
           </div>
           <div class="legend">
-            <span><i style="background:#8f67d8;"></i>Deep —</span>
-            <span><i style="background:#ff8e6f;"></i>REM —</span>
-            <span><i style="background:#ffb37e;"></i>Light —</span>
+            <span><i style="background:#8f67d8;"></i>Deep 1ч 02м</span>
+            <span><i style="background:#ff8e6f;"></i>REM 1ч 35м</span>
+            <span><i style="background:#ffb37e;"></i>Light 4ч 24м</span>
+            
+              <span><i style="background:rgba(34,27,51,0.18);"></i>Awake 0ч 13м</span>
             
           </div>
         </div>
@@ -735,9 +737,9 @@
         
         <div class="soft">
           <div class="label">SpO2</div>
-          <div class="value" style="font-size:30px;">95%</div>
+          <div class="value" style="font-size:30px;">94%</div>
           
-            <div class="meta" style="font-size:9px; color:var(--muted-2);">по данным 29 June</div>
+            <div class="meta">—</div>
           
           <div class="spark-wrap">
             <svg viewBox="0 0 120 52" width="100%" height="52" aria-label="HRV trend">
@@ -763,29 +765,29 @@
       <div class="metrics-2">
         <div class="metric-box">
           <div class="label">Body Battery · пик</div>
-          <div class="value">93</div>
+          <div class="value">86</div>
           
-            <div class="meta" style="font-size:10px; color:var(--muted-2);">по данным 29 June</div>
           
+            <div class="delta delta-rose">-7 vs вчера</div>
           
         </div>
 
         <div class="metric-box">
           <div class="label">Readiness</div>
-          <div class="value">—</div>
-          <div class="meta">—</div>
+          <div class="value">High</div>
+          <div class="meta">Лучшее окно утром</div>
         </div>
 
         <div class="metric-box">
           <div class="label">Stress <span style="font-size:9px; color:var(--muted-2);">(вчера)</span></div>
-          <div class="value">Low</div>
-          <div class="meta">Плавный старт без шума</div>
+          <div class="value">Med</div>
+          <div class="meta">Средний фон</div>
         </div>
 
         <div class="metric-box">
           <div class="label">SpO2 <span style="font-size:9px; color:var(--muted-2);">(вчера)</span></div>
-          <div class="value">95%</div>
-          <div class="meta">Ровное дыхание</div>
+          <div class="value">94%</div>
+          <div class="meta">—</div>
         </div>
       </div>
     </article>
@@ -863,7 +865,7 @@
       
 
       
-        <div class="block-opinion">Три встречи и ноль Deep Work — классика распылённого дня. Выбери одну главную и после неё 90 минут тишины, иначе вечером нечего будет предъявить.</div>
+        <div class="block-opinion">Три встречи, ноль Deep Work — день утекает в чужое расписание. Застолби час до первой встречи под главное, иначе вечер опять пустой.</div>
       
     </article>
 
@@ -933,12 +935,12 @@
 
       
       <div class="tasks-summary">
-        <div class="tasks-summary-title">Хорошее начало</div>
-        <p class="tasks-summary-text">Бриф собран. Проверь ресурс утром и не отдавай сильное утро мелочам.</p>
+        <div class="tasks-summary-title">Интервью ждать не будет</div>
+        <p class="tasks-summary-text">Ясно, 27 градусов, батарейка 86. Из 42 задач одна сегодня решает всё. Один час на подготовку — и звонок перестаёт быть страшным. Остальное подождёт.</p>
       </div>
 
       
-        <div class="block-opinion">42 задачи, 5 из них p3, и интервью с Vivid Money — закрывай p3 блоками по 90 минут, а интервью готовь последним, чтобы было на чём показать результат.</div>
+        <div class="block-opinion">42 задачи и интервью на Senior — не разменивайся на мелочь. Закрой 5 p3 до разговора, чтобы голова была свободна под настоящий разговор.</div>
       
     </article>
     
@@ -950,23 +952,23 @@
           <div class="label">Тело</div>
           <div class="title">Движение и питание</div>
         </div>
-        <div class="pill pill-rose">Keep It Light</div>
+        <div class="pill pill-rose">Move More</div>
       </div>
 
       <div class="progress-group">
         <div class="progress-row">
           <div class="progress-head">
             <span>Шаги</span>
-            <span>135 / 10000</span>
+            <span>14 487 / 10000</span>
           </div>
-          <div class="track"><div class="fill fill-steps" style="width:1%;"></div></div>
+          <div class="track"><div class="fill fill-steps" style="width:100%;"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-head">
             <span>Потратил</span>
-            <span>634 ккал</span>
+            <span>2 579 ккал</span>
           </div>
-          <div class="track"><div class="fill fill-burn" style="width:21%;"></div></div>
+          <div class="track"><div class="fill fill-burn" style="width:87%;"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-head">
@@ -976,12 +978,12 @@
           <div class="track"><div class="fill fill-eat" style="width:85%;"></div></div>
         </div>
         
-          <div class="meta">Баланс +1890 ккал. Профицит — активнее подвигайся в течение дня.</div>
+          <div class="meta">Баланс −55 ккал. Неплохой день, чтобы не переусердствовать.</div>
         
       </div>
 
       
-        <div class="block-opinion">135 шагов и +1890 ккал — ты в режиме холодильника. Сегодня минус 500 на еде и 5к шагов, иначе к пятнице будешь шарик.</div>
+        <div class="block-opinion">14487 шагов и дефицит 55 ккал — тело уже в минусе, не добивай его голодом. Сегодня добавь 300-400 ккал сверх нормы и не вздумай резать углеводы.</div>
       
     </article>
 
@@ -1002,7 +1004,7 @@
           <div class="weather-card">
             <div class="weather-icon">☀️</div>
             <div class="label">Утро</div>
-            <div class="weather-temp">22°</div>
+            <div class="weather-temp">21°</div>
             <div class="meta">Ясно</div>
           </div>
         
@@ -1024,11 +1026,11 @@
 
       
       
-        <div class="weather-vs-yesterday">утром так же; днём на 3° теплее; вечером так же.</div>
+        <div class="weather-vs-yesterday">утром на 2° прохладнее; днём на 3° теплее; вечером так же.</div>
       
 
       
-        <div class="block-opinion">Ясно, двадцать семь — выходи и не думай. Такой день греет тело и башку, не профукай его у монитора.</div>
+        <div class="block-opinion">Ясно и 27 — идеальный день, чтобы выйти из четырех стен и вдохнуть что-то кроме кондиционера.</div>
       
     </article>
 
