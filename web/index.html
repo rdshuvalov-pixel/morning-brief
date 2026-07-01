@@ -133,7 +133,7 @@
       border-radius: 50%;
       background:
         radial-gradient(circle closest-side, #fffaf6 68%, transparent 69% 100%),
-        conic-gradient(var(--amber) 0 310deg, rgba(211,138,44,0.14) 310deg 360deg);
+        conic-gradient(var(--good) 0 360deg, rgba(45,155,125,0.14) 360deg 360deg);
       display: grid;
       place-items: center;
       text-align: center;
@@ -658,15 +658,15 @@
         
         <div class="hero-badge">1 July</div>
 
-        <h1>10k шагов — а баланс минус</h1>
-        <p class="lead">10 343 шага вчера, а калорий −426. Тело работало, но в минус — значит, жжёшь резервы, не закрывая их. Сегодня 29° и переменная облачность, не оправдание сидеть в четырёх стенах.</p>
+        <h1>100. Не благодари — работай</h1>
+        <p class="lead">Батарейка 100, сон 8ч 44м и пульс 48 — тело в идеальной форме, потратить такой ресурс на ерунду будет преступлением. HRV 66 на фоне стресса 10 — ты отдохнул по-настоящему. Вчерашние 10 343 шага и −426 ккал — нормальный ход, сегодня нужно минимум так же.</p>
       </div>
 
       
       <div class="battery">
         <div class="battery-ring">
           <div>
-            <strong>86</strong>
+            <strong>100</strong>
             <span>Battery</span>
           </div>
         </div>
@@ -677,23 +677,23 @@
     <div class="hero-grid">
       <div class="hero-stat">
         <div class="label">Сон</div>
-        <div class="value">—</div>
-        <div class="meta">Sleep score —</div>
+        <div class="value">8ч 44м</div>
+        <div class="meta">Sleep score 93</div>
       </div>
       <div class="hero-stat">
         <div class="label">HRV</div>
-        <div class="value">—</div>
+        <div class="value">66</div>
         <div class="meta">—</div>
       </div>
       <div class="hero-stat">
         <div class="label">Пульс</div>
-        <div class="value">—</div>
+        <div class="value">48</div>
         <div class="meta">Resting bpm</div>
       </div>
     </div>
 
     
-      <div class="block-opinion">Данных по батарейке нет — значит, ставка не на цифры, а на дисциплину: начни с одной главной задачи и проверь реальное состояние к обеду через часы.</div>
+      <div class="block-opinion">100/100 и HRV 66 после почти 9 часов сна — ресурс редкий, не размазывай по мелочам, ставь на главный вызов дня.</div>
     
   </section>
 
@@ -706,7 +706,7 @@
           <div class="label">Ночь</div>
           <div class="title">Сон и восстановление</div>
         </div>
-        <div class="pill pill-muted">Night —</div>
+        <div class="pill pill-good">Night Stable</div>
       </div>
 
       <div class="split">
@@ -714,10 +714,10 @@
         <div class="soft">
           <div class="label">Sleep Stages</div>
           <div class="sleep-bar">
-            <div class="stage-deep"  style="width:35%;"></div>
-            <div class="stage-rem"   style="width:23%;"></div>
-            <div class="stage-light" style="width:42%;"></div>
-            <div class="stage-awake" style="width:0%;"></div>
+            <div class="stage-deep"  style="width:11%;"></div>
+            <div class="stage-rem"   style="width:22%;"></div>
+            <div class="stage-light" style="width:64%;"></div>
+            <div class="stage-awake" style="width:3%;"></div>
           </div>
           <div class="axis">
             <span>23:18</span>
@@ -725,9 +725,11 @@
             <span>07:00</span>
           </div>
           <div class="legend">
-            <span><i style="background:#8f67d8;"></i>Deep —</span>
-            <span><i style="background:#ff8e6f;"></i>REM —</span>
-            <span><i style="background:#ffb37e;"></i>Light —</span>
+            <span><i style="background:#8f67d8;"></i>Deep 0ч 58м</span>
+            <span><i style="background:#ff8e6f;"></i>REM 1ч 55м</span>
+            <span><i style="background:#ffb37e;"></i>Light 5ч 35м</span>
+            
+              <span><i style="background:rgba(34,27,51,0.18);"></i>Awake 0ч 16м</span>
             
           </div>
         </div>
@@ -735,9 +737,9 @@
         
         <div class="soft">
           <div class="label">SpO2</div>
-          <div class="value" style="font-size:30px;">94%</div>
+          <div class="value" style="font-size:30px;">96%</div>
           
-            <div class="meta" style="font-size:9px; color:var(--muted-2);">по данным 30 June</div>
+            <div class="meta">стабильно всю ночь</div>
           
           <div class="spark-wrap">
             <svg viewBox="0 0 120 52" width="100%" height="52" aria-label="HRV trend">
@@ -763,17 +765,17 @@
       <div class="metrics-2">
         <div class="metric-box">
           <div class="label">Body Battery · пик</div>
-          <div class="value">86</div>
+          <div class="value">100</div>
           
-            <div class="meta" style="font-size:10px; color:var(--muted-2);">по данным 30 June</div>
           
+            <div class="delta delta-good">+14 vs вчера</div>
           
         </div>
 
         <div class="metric-box">
           <div class="label">Readiness</div>
-          <div class="value">—</div>
-          <div class="meta">—</div>
+          <div class="value">High</div>
+          <div class="meta">Лучшее окно утром</div>
         </div>
 
         <div class="metric-box">
@@ -803,6 +805,23 @@
       
         <div class="list">
           
+            <div class="item item-deepwork">
+              <div>
+                <strong>Deep Work</strong>
+                
+                  <span class="item-sub">главная задача без переключений</span>
+                
+              </div>
+              <div class="when">
+                
+                  <strong>08:00</strong>
+                
+                
+                  <span class="meta">60 мин</span>
+                
+              </div>
+            </div>
+          
             <div class="item ">
               <div>
                 <strong>Заполнить анкету на перевод детей</strong>
@@ -825,23 +844,6 @@
                 
                 
                   <span class="meta">45 мин</span>
-                
-              </div>
-            </div>
-          
-            <div class="item item-deepwork">
-              <div>
-                <strong>Deep Work</strong>
-                
-                  <span class="item-sub">главная задача без переключений</span>
-                
-              </div>
-              <div class="when">
-                
-                  <strong>11:45</strong>
-                
-                
-                  <span class="meta">405 мин</span>
                 
               </div>
             </div>
@@ -876,7 +878,7 @@
       
 
       
-        <div class="block-opinion">4 встречи без Deep Work — день утечёт в чужие повестки. Вытащи 1 час до первой встречи под своё, иначе вечером вспомнишь что ничего не сделал.</div>
+        <div class="block-opinion">4 встречи подряд, ноль Deep Work — пустые встречи высосут день. Возьми хотя бы 30 минут между ними под главное, иначе вечером нечем хвастаться.</div>
       
     </article>
 
@@ -946,12 +948,12 @@
 
       
       <div class="tasks-summary">
-        <div class="tasks-summary-title">Интервью — главный козырь дня</div>
-        <p class="tasks-summary-text">Топ-задача — Vivid Money. 42 задачи в очереди, но эта решает всё остальное. Закрой еду нормально, выйди из дома до 11, и не трогай kanban до самого созвона. Один разговор — и день оправдан.</p>
+        <div class="tasks-summary-title">Vivid Money ждёт</div>
+        <p class="tasks-summary-text">Топ-задача дня — собес на Senior Product Engineer. Батя на 100, мозг свежий, погода тёплая. Готовься как к последнему раунду: ресёрч компании, свои метрики, кейсы. Остальные 41 задача подождут — сегодня всё решает один звонок.</p>
       </div>
 
       
-        <div class="block-opinion">42 задачи и интервью Vivid Money в топе — фокус на нём, остальное p3 подождёт. Подготовься так, чтобы потом было о чём рассказать.</div>
+        <div class="block-opinion">42 задачи и интервью с Vivid — главное не про скоринг, а про то, как ты думаешь вслух; готовь кейс всю неделю, остальное подождёт.</div>
       
     </article>
     
@@ -994,7 +996,7 @@
       </div>
 
       
-        <div class="block-opinion">Минус 426 — терпимо, но не норма. Сегодня добавь ~300 ккал сверху или пройди лишние 4к шагов, иначе к пятнице будешь вялый.</div>
+        <div class="block-opinion">Дефицит 426 ккал при 10к шагов — тело уже работает на износе. Сегодня поешь нормально, иначе к вечеру срежешь на ровном месте.</div>
       
     </article>
 
@@ -1006,7 +1008,7 @@
           <div class="title">Что снаружи</div>
         </div>
         
-          <div class="pill pill-blue">Wind 19 km/h</div>
+          <div class="pill pill-blue">Wind 20 km/h</div>
         
       </div>
 
@@ -1015,33 +1017,33 @@
           <div class="weather-card">
             <div class="weather-icon">☀️</div>
             <div class="label">Утро</div>
-            <div class="weather-temp">21°</div>
-            <div class="meta">Небольшая облачность</div>
+            <div class="weather-temp">22°</div>
+            <div class="meta">Переменная облачность</div>
           </div>
         
           <div class="weather-card">
             <div class="weather-icon">☀️</div>
             <div class="label">День</div>
-            <div class="weather-temp">29°</div>
-            <div class="meta">Переменная облачность</div>
+            <div class="weather-temp">28°</div>
+            <div class="meta">Облачно с прояснениями</div>
           </div>
         
           <div class="weather-card">
             <div class="weather-icon">☀️</div>
             <div class="label">Вечер</div>
             <div class="weather-temp">24°</div>
-            <div class="meta">Переменная облачность</div>
+            <div class="meta">Облачно с прояснениями</div>
           </div>
         
       </div>
 
       
       
-        <div class="weather-vs-yesterday">утром на 2° прохладнее; днём на 4° теплее; вечером на 3° теплее; ветер слабее на 12 км/ч.</div>
+        <div class="weather-vs-yesterday">утром так же; днём на 3° теплее; вечером на 3° теплее; ветер слабее на 11 км/ч.</div>
       
 
       
-        <div class="block-opinion">29 и облачно — самое то, чтобы выйти и не свариться. Сидеть дома в такую погоду — измена самому себе.</div>
+        <div class="block-opinion">Облачно и 28 — не холодно, не жарко. Окно на балкон и встреча на улице, кайфуй пока не придавило.</div>
       
     </article>
 
