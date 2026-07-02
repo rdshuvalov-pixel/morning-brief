@@ -2,7 +2,6 @@
 """Run ALL data providers for a date and render the morning brief HTML.
 
 Pipeline:
-    HelioProvider   -> upsert_helio_metrics
     GarminProvider  -> upsert_garmin_metrics   (already covered by run_garmin.py)
     FoodProvider    -> upsert_food_log         (food_date = target - 1 day)
     WeatherProvider -> upsert_weather_log
@@ -17,7 +16,7 @@ Usage:
         .venv/bin/python run_all.py --date 2026-06-27  # specific day
         .venv/bin/python run_all.py --skip-garmin      # if already ran run_garmin.py
 
-Idempotent: all upserts use on_conflict=date (garmin/helio) or delete-then-insert
+Idempotent: all upserts use on_conflict=date (garmin) or delete-then-insert
 (food/weather/calendar/tasks). Re-running is safe.
 """
 from __future__ import annotations
@@ -54,7 +53,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out", default="/tmp/brief_playful.html", help="Output HTML path")
     p.add_argument("--skip-garmin", action="store_true",
                    help="Skip Garmin (use existing garmin_metrics row)")
-    p.add_argument("--skip-helio", action="store_true", help="Skip Helio")
     p.add_argument("--skip-food", action="store_true", help="Skip Food log")
     p.add_argument("--skip-weather", action="store_true", help="Skip Weather")
     p.add_argument("--skip-calendar", action="store_true", help="Skip Calendar")
@@ -68,7 +66,7 @@ async def _run_provider(provider, name: str, target_date: date) -> tuple[str, ob
     """Run a single provider, return (name, data, error).
 
     Forwards target_date to providers that accept it (Garmin).
-    Providers without date support (Food, Weather, Calendar, Tasks, Helio)
+    Providers without date support (Food, Weather, Calendar, Tasks)
     ignore the arg.
     """
     try:
@@ -142,7 +140,7 @@ async def main() -> int:
 
     # Step 2: run all providers in parallel
     skip = {n for n, flag in (
-        ("garmin", args.skip_garmin), ("helio", args.skip_helio),
+        ("garmin", args.skip_garmin),
         ("food", args.skip_food), ("weather", args.skip_weather),
         ("calendar", args.skip_calendar), ("tasks", args.skip_tasks),
     ) if flag}
