@@ -658,8 +658,8 @@
         
         <div class="hero-badge">2 July</div>
 
-        <h1>100 из 100. Дальше — твой ход</h1>
-        <p class="lead">Батарейка на потолке, пульс 48, HRV 66. Тело в режиме «дай задачу посложнее». 10 705 шагов вчера — неплохо, но −2018 ккал это не медаль, это долг. Сон 7ч 55м при score 86 — ровно столько, чтобы не врать себе про отдых.</p>
+        <h1>100. Дальше — твой ход</h1>
+        <p class="lead">Батарейка 100/100, сон 86. Тело заряжено под потолок. HRV 66, пульс 48 — это не отдых, это готовность к удару. 34° на улице, −2018 ккал вчера — жара просит воду, не оправдания.</p>
       </div>
 
       
@@ -693,7 +693,7 @@
     </div>
 
     
-      <div class="block-opinion">100 в батарейке и HRV 66 — редкий союз. Бросай всё рутинное, ставь на самую жирную задачу дня пока заряд полный.</div>
+      <div class="block-opinion">100 батарейка при HRV 66 — организм в полной боевой готовности. Бери самую стрёмную задачу и закрывай до обеда, пока мотор не сдулся.</div>
     
   </section>
 
@@ -839,7 +839,7 @@
       
 
       
-        <div class="block-opinion">Одна встреча и пустой Deep Work — редкий шанс закрыть главное без перебивок. Поставь себе 90 минут на то, что давно откладывал, и запри слот.</div>
+        <div class="block-opinion">Одна встреча и ноль Deep Work — день сам просит, чтобы ты его сделал. Закрой встречу за 30 минут и выруби всё до обеда на главное.</div>
       
     </article>
 
@@ -909,12 +909,12 @@
 
       
       <div class="tasks-summary">
-        <div class="tasks-summary-title">Интервью — не тренировка</div>
-        <p class="tasks-summary-text">Vivid Money, Senior Product Engineer. Погода 33.7°, ясно — значит вечером отмазок про духоту не будет. Подготовь кейсы, посмотри их продукт, не приходи как шаблон. 42 задачи в списке — после интервью многие сами отвалятся.</p>
+        <div class="tasks-summary-title">Vivid Money не ждёт</div>
+        <p class="tasks-summary-text">Топ-задача — интервью с Vivid Money. 42 задачи в списке, реально важна одна. Батарейка полная, погода ясная — сделай интервью, остальное подождёт. После такого сна стыдно не выложиться.</p>
       </div>
 
       
-        <div class="block-opinion">42 задачи — дым. Закрой 5 штук p3, особенно интервью по Product Engineer, остальное само отвалится к вечеру.</div>
+        <div class="block-opinion">42 задачи и топ — интервью в Vivid, которое либо меняет уровень, либо нет. Остальные 41 подождут, готовься к разговору как к главному событию дня.</div>
       
     </article>
     
@@ -957,7 +957,7 @@
       </div>
 
       
-        <div class="block-opinion">Дефицит две штуки — это уже режим, а не ошибка. Подкинь 400 ккал едой и шаги подтяни, иначе к вечеру сгоришь.</div>
+        <div class="block-opinion">Дефицит две тысячи при 10к шагов — это не режим, это марафон на голодном. Сегодня поешь нормально, иначе к вечеру сгоришь.</div>
       
     </article>
 
@@ -978,8 +978,8 @@
           <div class="weather-card">
             <div class="weather-icon">☀️</div>
             <div class="label">Утро</div>
-            <div class="weather-temp">24°</div>
-            <div class="meta">Небольшая облачность</div>
+            <div class="weather-temp">25°</div>
+            <div class="meta">Переменная облачность</div>
           </div>
         
           <div class="weather-card">
@@ -992,7 +992,7 @@
           <div class="weather-card">
             <div class="weather-icon">☀️</div>
             <div class="label">Вечер</div>
-            <div class="weather-temp">27°</div>
+            <div class="weather-temp">28°</div>
             <div class="meta">Небольшая облачность</div>
           </div>
         
@@ -1000,11 +1000,11 @@
 
       
       
-        <div class="weather-vs-yesterday">утром на 4° теплее; днём на 8° теплее; вечером на 4° теплее.</div>
+        <div class="weather-vs-yesterday">утром на 5° теплее; днём на 9° теплее; вечером на 4° теплее.</div>
       
 
       
-        <div class="block-opinion">33.7 и ясно — это не погода, это приглашение. Выходи, дела переделаешь потом, а такое солнце второй раз не нагрянет.</div>
+        <div class="block-opinion">34 и ясно — терпимо, пока тень. Встречу не отменяй, но воду с собой и без геройства под солнцем.</div>
       
     </article>
 
@@ -1131,13 +1131,26 @@
         setDateLabel(currentDate);
       })
       .catch(err => {
-        elMain.innerHTML = `
-          <section class="stack" style="padding: 40px 20px; text-align: center;">
-            <div class="label">Архив</div>
-            <h2 style="margin: 12px 0;">Бриф за ${fmtRuFull(currentDate)} недоступен</h2>
-            <p style="color: var(--muted); margin: 0 0 20px;">${err.message}</p>
-            <a href="?" style="color: var(--blue);">← к сегодняшнему брифу</a>
-          </section>`;
+        // Pre-render date label server-side so we don't depend on fmtRuFull
+        // running in catch path (some browsers pause JS after fetch error).
+        var dateLabelRu = (function(){
+          try {
+            var parts = (currentDate || '').split('-');
+            if (parts.length !== 3) return currentDate || '';
+            var months = ['января','февраля','марта','апреля','мая','июня',
+                          'июля','августа','сентября','октября','ноября','декабря'];
+            var d = parseInt(parts[2], 10);
+            var m = months[parseInt(parts[1], 10) - 1] || '';
+            return d + ' ' + m;
+          } catch(e) { return currentDate || ''; }
+        })();
+        elMain.innerHTML = ''
+          + '<section class="stack" style="padding: 40px 20px; text-align: center;">'
+          +   '<div class="label">Архив</div>'
+          +   '<h2 style="margin: 12px 0;">Бриф за ' + dateLabelRu + ' недоступен</h2>'
+          +   '<p style="color: var(--muted); margin: 0 0 20px;">' + (err && err.message ? err.message : 'ошибка загрузки') + '</p>'
+          +   '<a href="?" style="color: var(--blue);">← к сегодняшнему брифу</a>'
+          + '</section>';
         setDateLabel(currentDate);
       });
   }
