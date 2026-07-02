@@ -53,5 +53,31 @@ if ! git push origin main >> "$LOG" 2>&1; then
     exit 1
 fi
 
+echo "[archive] git push done $(date -u +%FT%TZ)" >> "$LOG"
+
+# Step 4: verify Vercel deployment is live with the new content
+# Wait up to 60s for Vercel to deploy (typical: 10-30s)
+VERCEL_OK=0
+for i in 1 2 3 4 5 6; do
+    sleep 10
+    if /root/morning_brief_v2/scripts/vercel_check.sh >> "$LOG" 2>&1; then
+        VERCEL_OK=1
+        echo "[archive] vercel_check PASSED on attempt $i $(date -u +%FT%TZ)" >> "$LOG"
+        break
+    fi
+    echo "[archive] vercel_check attempt $i failed, retrying..." >> "$LOG"
+done
+
+if [ "$VERCEL_OK" -ne 1 ]; then
+    echo "[archive] FAIL: vercel never showed new content after 60s $(date -u +%FT%TZ)" >> "$LOG"
+    # Telegram alert (per /etc/cron.d MB2_ALERTS=1)
+    if [ "${MB2_ALERTS:-0}" = "1" ] && [ -n "${MB2_ALERT_CHAT_ID:-}" ]; then
+        /root/morning_brief_v2/scripts/notify_telegram.sh \
+            "⚠️ morning-brief-archive: git push OK, but Vercel never showed new content for 60s. Manual check: https://rus-morning-brief.vercel.app" \
+            >> "$LOG" 2>&1 || true
+    fi
+    exit 1
+fi
+
 echo "[archive] done $(date -u +%FT%TZ)" >> "$LOG"
 exit 0

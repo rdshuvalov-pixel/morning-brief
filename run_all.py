@@ -31,8 +31,9 @@ from datetime import date, datetime, timedelta
 sys.path.insert(0, "/root/morning_brief_v2")
 
 from db.client import (  # noqa: E402
-    upsert_brief, upsert_garmin_metrics, upsert_helio_metrics,
+    upsert_brief, upsert_garmin_metrics,
     upsert_food_log, upsert_weather_log, upsert_calendar_events, upsert_tasks,
+    get_garmin_metrics,
 )
 from providers.garmin import GarminProvider    # noqa: E402
 # HelioProvider disabled 2026-06-29 — браслет больше не носим, данные не нужны.
@@ -103,8 +104,6 @@ def _write_provider(brief_id: str, target: date, name: str, data) -> bool:
     try:
         if name == "garmin":
             upsert_garmin_metrics(brief_id, target.isoformat(), data)
-        elif name == "helio":
-            upsert_helio_metrics(brief_id, target.isoformat(), data)
         elif name == "food":
             entries = data.get("entries", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
             upsert_food_log(brief_id, (target - timedelta(days=1)).isoformat(), entries)
@@ -167,6 +166,13 @@ async def main() -> int:
     results = await asyncio.gather(*tasks)
     for name, data, err in results:
         if data is not None:
+            # Garmin: don't overwrite fresh morning data from 06:00 cron if
+            # the row already exists. Render just reads it (via build_context).
+            if name == "garmin":
+                existing = get_garmin_metrics(target)
+                if existing and existing.get("id"):
+                    logger.info("[garmin] existing row for %s, skip overwrite (06:00 cron already wrote)", target.isoformat())
+                    continue
             _write_provider(brief_id, target, name, data)
 
     # Step 3: render

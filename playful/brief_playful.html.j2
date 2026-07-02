@@ -1086,13 +1086,26 @@
         setDateLabel(currentDate);
       })
       .catch(err => {
-        elMain.innerHTML = `
-          <section class="stack" style="padding: 40px 20px; text-align: center;">
-            <div class="label">Архив</div>
-            <h2 style="margin: 12px 0;">Бриф за ${fmtRuFull(currentDate)} недоступен</h2>
-            <p style="color: var(--muted); margin: 0 0 20px;">${err.message}</p>
-            <a href="?" style="color: var(--blue);">← к сегодняшнему брифу</a>
-          </section>`;
+        // Pre-render date label server-side so we don't depend on fmtRuFull
+        // running in catch path (some browsers pause JS after fetch error).
+        var dateLabelRu = (function(){
+          try {
+            var parts = (currentDate || '').split('-');
+            if (parts.length !== 3) return currentDate || '';
+            var months = ['января','февраля','марта','апреля','мая','июня',
+                          'июля','августа','сентября','октября','ноября','декабря'];
+            var d = parseInt(parts[2], 10);
+            var m = months[parseInt(parts[1], 10) - 1] || '';
+            return d + ' ' + m;
+          } catch(e) { return currentDate || ''; }
+        })();
+        elMain.innerHTML = ''
+          + '<section class="stack" style="padding: 40px 20px; text-align: center;">'
+          +   '<div class="label">Архив</div>'
+          +   '<h2 style="margin: 12px 0;">Бриф за ' + dateLabelRu + ' недоступен</h2>'
+          +   '<p style="color: var(--muted); margin: 0 0 20px;">' + (err && err.message ? err.message : 'ошибка загрузки') + '</p>'
+          +   '<a href="?" style="color: var(--blue);">← к сегодняшнему брифу</a>'
+          + '</section>';
         setDateLabel(currentDate);
       });
   }
