@@ -49,10 +49,16 @@ for attempt in $(seq 1 "$MAX_RETRIES"); do
     fi
 
     # Step 2: run_all.py (render + DB writes)
+    # 2026-07-04: --out web/brief_today.html is critical — without it, run_all
+    # defaults to /tmp/brief_playful.html, and nothing copies it into web/.
+    # Result: archive_brief_cron then archives the stale 03.07 brief under
+    # the 04.07 filename, vercel_check sees the modtime-stale date and
+    # "verifies" the wrong page, exit 0, all green — but the live site
+    # shows yesterday's brief under today's URL.
     if [ -n "$DATE" ]; then
-        RENDER_OUT=$(./.venv/bin/python run_all.py --date "$DATE" 2>&1)
+        RENDER_OUT=$(./.venv/bin/python run_all.py --date "$DATE" --out web/brief_today.html 2>&1)
     else
-        RENDER_OUT=$(./.venv/bin/python run_all.py 2>&1)
+        RENDER_OUT=$(./.venv/bin/python run_all.py --out web/brief_today.html 2>&1)
     fi
     RENDER_RC=$?
     log "run_all rc=$RENDER_RC"

@@ -49,9 +49,20 @@ if [ "$HTTP_CODE" != "200" ]; then
     exit 1
 fi
 
-# Title should contain "Morning Brief"
-if ! echo "$LIVE_TITLE" | grep -qi "Morning Brief"; then
-    echo "[vercel_check] FAIL: title does not look like morning brief" >&2
+# Title should contain "Morning Brief" AND the expected date (YYYY-MM-DD
+# or the human "3 July" form). 2026-07-03: previous check only verified
+# the brand string, which let a stale 2-July title pass after a rerender.
+EXPECTED_COMPACT=$(echo "$EXPECTED_DATE" | awk -F- '{print $3}' | sed 's/^0//')
+EXPECTED_MONTH_NUM=$(echo "$EXPECTED_DATE" | awk -F- '{print $2}' | sed 's/^0//')
+TITLE_OK=0
+if echo "$LIVE_TITLE" | grep -qi "Morning Brief"; then
+    # Match the day number and either the month name or the full ISO date
+    if echo "$LIVE_TITLE" | grep -qE "(^|[^0-9])${EXPECTED_COMPACT} [^A-Za-z0-9]?(January|February|March|April|May|June|July|August|September|October|November|December)|${EXPECTED_DATE}"; then
+        TITLE_OK=1
+    fi
+fi
+if [ "$TITLE_OK" -ne 1 ]; then
+    echo "[vercel_check] FAIL: title '$LIVE_TITLE' does not contain expected date $EXPECTED_DATE" >&2
     exit 1
 fi
 

@@ -164,13 +164,15 @@ async def main() -> int:
     results = await asyncio.gather(*tasks)
     for name, data, err in results:
         if data is not None:
-            # Garmin: don't overwrite fresh morning data from 06:00 cron if
-            # the row already exists. Render just reads it (via build_context).
-            if name == "garmin":
-                existing = get_garmin_metrics(target)
-                if existing and existing.get("id"):
-                    logger.info("[garmin] existing row for %s, skip overwrite (06:00 cron already wrote)", target.isoformat())
-                    continue
+            # Garmin: by default re-fetch and upsert on every run_all invocation.
+            # 2026-07-03 lesson: the 06:00 cron wrote settlement-ish data,
+            # but by 08:30 render time Garmin API returns fresher numbers
+            # (steps/kcal accumulated overnight, BB delta, etc.). Reading the
+            # existing row and skipping the write left the brief stuck on
+            # 6:00 figures. upsert_garmin_metrics is idempotent via
+            # on_conflict='date', so re-writing is safe.
+            # Use --skip-garmin to opt out (e.g. when you want to render
+            # against a hand-edited row).
             _write_provider(brief_id, target, name, data)
 
     # Step 3: render

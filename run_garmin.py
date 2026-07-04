@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
 """One-shot runner: refresh Garmin metrics into garmin_metrics (idempotent upsert).
 
-Default target = TODAY (not yesterday). This used to default to yesterday,
-which silently dropped every morning's data — the user was already awake by
-07:00 with sleep/HRV/RHR/Body Battery available, but the runner wouldn't
-collect them until the day "closed" the next morning.
+Default behaviour as of 2026-07-03:
+    Fetch and upsert BOTH today AND yesterday.
+    - `garmin_metrics[date=today]`     → live data at fetch time (steps/kcal accumulate)
+    - `garmin_metrics[date=yesterday]` → settlement data (sleep/HRV/RHR/BB/TR/stress
+      become "settled" only the morning after — Garmin API returns final numbers
+      the next day, not in real-time).
+
+Why two rows: the morning brief renders the "movement" block from `garmin_yesterday`
+(see playful/render_playful.py:676 `movement_src = garmin_yesterday or garmin`).
+That lookup only works correctly if BOTH rows exist with the right `date` column.
+Without this, `garmin_metrics[date=today]` carries settlement data from the
+previous morning's cron run, but its `date` is set to the day before — so
+`get_garmin_metrics(yesterday)` returns either the wrong row or nothing.
 
 Usage:
     cd /root/morning_brief_v2 && set -a && source .env && set +a && \\
-        .venv/bin/python run_garmin.py                    # today
-        .venv/bin/python run_garmin.py --date 2026-06-27  # specific day
-        .venv/bin/python run_garmin.py --date 2026-06-27 --date 2026-06-28  # batch
+        .venv/bin/python run_garmin.py                         # both today + yesterday
+        .venv/bin/python run_garmin.py --date 2026-07-02       # specific day only
+        .venv/bin/python run_garmin.py --date 2026-07-02 --date 2026-07-01  # batch
+        .venv/bin/python run_garmin.py --also-yesterday=false  # legacy single-date
 
 Idempotent via on_conflict='date' on both briefs and garmin_metrics — re-running
 for the same date overwrites the row instead of duplicating.
@@ -41,12 +51,23 @@ def parse_args() -> argparse.Namespace:
         metavar="YYYY-MM-DD",
         help="Target date (repeatable). Default: today.",
     )
+    p.add_argument(
+        "--also-yesterday",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Also fetch and upsert yesterday (default: true). "
+             "Use --no-also-yesterday for legacy single-date behaviour.",
+    )
     return p.parse_args()
 
 
 def resolve_dates(args: argparse.Namespace) -> list[date]:
     if not args.dates:
-        return [date.today()]
+        today = date.today()
+        out = [today]
+        if args.also_yesterday:
+            out.append(today - timedelta(days=1))
+        return out
     out: list[date] = []
     for s in args.dates:
         try:

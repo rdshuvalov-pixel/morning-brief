@@ -34,6 +34,20 @@ if ! ./.venv/bin/python archive_brief.py >> "$LOG" 2>&1; then
     exit 1
 fi
 
+# Step 2.5: refresh web/index.html so Vercel's root (?date=today or /)
+# shows the current date in <title> before client JS runs. The archive
+# file at archive/<date>.html is the source of truth for ?date=<date>
+# requests; index.html is what vercel_check sees by default.
+# 2026-07-03: previously this copy lived in render_brief_cron.sh, which
+# is no longer invoked — leaving the title pinned to the day of the last
+# manual copy.
+if [ -f web/brief_today.html ]; then
+    cp -f web/brief_today.html web/index.html
+    echo "[archive] refreshed web/index.html from brief_today.html" >> "$LOG"
+else
+    echo "[archive] WARN: web/brief_today.html missing, index.html not refreshed" >> "$LOG"
+fi
+
 # Step 3: commit + push
 #         (only if there's something new to commit)
 git add web/archive/ web/index.html
