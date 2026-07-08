@@ -88,7 +88,8 @@ export default async function handler(req, res) {
   }
 
   // Return actual Supabase error so we can debug
-  return res.status(500).json({
+  // Both as JSON (for programmatic access) AND as text (for browser viewing)
+  const debugBody = {
     error: 'insert failed',
     supabase_code: error.code,
     supabase_message: error.message,
@@ -98,7 +99,27 @@ export default async function handler(req, res) {
       SUPABASE_URL_len: supabaseUrl?.length || 0,
       SERVICE_ROLE_len: serviceKey?.length || 0,
     },
-  });
+  };
+  const textBody = `INSERT FAILED
+================
+supabase_code:    ${error.code || '(none)'}
+supabase_message: ${error.message || '(none)'}
+supabase_details: ${error.details || '(none)'}
+supabase_hint:    ${error.hint || '(none)'}
+----------------
+ENV CHECK:
+SUPABASE_URL_len:     ${supabaseUrl?.length || 0}
+SERVICE_ROLE_len:     ${serviceKey?.length || 0}
+================
+JSON: ${JSON.stringify(debugBody)}`;
+
+  // Browser request? Return text/plain so user can read it directly.
+  const accept = req.headers.accept || '';
+  if (accept.includes('text/html')) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.status(500).send(textBody);
+  }
+  return res.status(500).json(debugBody);
 }
 
 export const config = {
