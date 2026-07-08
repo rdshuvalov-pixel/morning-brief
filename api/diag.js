@@ -32,6 +32,19 @@ export default async function handler(req, res) {
 
   const out = { env_check, probes: {} };
 
+  // Decode service_role JWT to verify it's really service_role (not anon or other)
+  function decodeJwt(t) {
+    try {
+      const parts = t.split('.');
+      if (parts.length !== 3) return { error: 'not a JWT' };
+      let p = parts[1]; p += '='.repeat((-p.length) % 4);
+      return JSON.parse(Buffer.from(p, 'base64url').toString('utf8'));
+    } catch (e) { return { error: String(e) }; }
+  }
+  out.jwt_claims = decodeJwt(serviceKey);
+  out.jwt_first_chars = serviceKey.slice(0, 50);
+  out.jwt_last_chars = serviceKey.slice(-20);
+
   // Probe 1: SELECT
   try {
     const r = await sb.schema('morning_brief_v2').from('jobs').select('id, script, status').limit(1);
