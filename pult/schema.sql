@@ -35,21 +35,12 @@ begin
     where status = 'pending'
     order by triggered_at asc
     for update skip locked
-    get diagnostics n = row_count;
-      return n;
-    end $$;
+    limit 1;
+  return j;
+end $$;
 
-    -- Grants for Vercel Function (uses service_role key to INSERT jobs)
-    -- Critical: BOTH `service_role` AND `authenticator` need grants.
-    -- PostgREST connects as `authenticator` (login role) and sets
-    -- current_user via SET LOCAL ROLE based on JWT claim.
-    -- Postgres checks grants for the LOGIN role (authenticator),
-    -- so without this grant service_role JWT gets 42501.
-    grant insert, update, delete, select on morning_brief_v2.jobs to authenticator, service_role;
-    grant usage, select on sequence morning_brief_v2.jobs_id_seq to authenticator, service_role;
-
-    -- === Re-notify PostgREST to refresh schema cache ===
-    notify pgrst, 'reload schema';
+-- RPC: reap_stuck_jobs (mark running > 15 min as orphaned)
+create or replace function reap_stuck_jobs() returns integer
   language plpgsql as $$
 declare n integer;
 begin
@@ -59,3 +50,15 @@ begin
   get diagnostics n = row_count;
   return n;
 end $$;
+
+-- Grants for Vercel Function (uses service_role key to INSERT jobs)
+-- Critical: BOTH `service_role` AND `authenticator` need grants.
+-- PostgREST connects as `authenticator` (login role) and sets
+-- current_user via SET LOCAL ROLE based on JWT claim.
+-- Postgres checks grants for the LOGIN role (authenticator),
+-- so without this grant service_role JWT gets 42501.
+grant insert, update, delete, select on morning_brief_v2.jobs to authenticator, service_role;
+grant usage, select on sequence morning_brief_v2.jobs_id_seq to authenticator, service_role;
+
+-- === Re-notify PostgREST to refresh schema cache ===
+notify pgrst, 'reload schema';
