@@ -1,6 +1,7 @@
 // /root/morning_brief_v2/api/diag.js
 // GET /api/diag?key=SHARED_SECRET
-// Returns current grants on morning_brief_v2.jobs via service_role.
+// Returns: env_check, then tries SELECT, INSERT, UPDATE on morning_brief_v2.jobs.
+// This isolates WHICH permission service_role is missing.
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -24,25 +25,35 @@ export default async function handler(req, res) {
     env_check: { SUPABASE_URL_len: supabaseUrl.length, SERVICE_ROLE_len: serviceKey.length },
   };
 
-  // Try direct select to confirm service_role has access at all
+  // 1) SELECT (read)
   try {
     const r = await sb.schema('morning_brief_v2').from('jobs').select('id').limit(1);
-    out.direct_select = { ok: !r.error, error: r.error?.message, rows: r.data?.length };
+    out.select = r.error ? { ok: false, code: r.error.code, msg: r.error.message }
+                         : { ok: true, count: r.data?.length };
   } catch (e) {
-    out.direct_select = { exception: String(e) };
+    out.select = { exception: String(e) };
   }
 
-  // Try to read grants via information_schema
+  // 2) INSERT (write)
   try {
-    // Need to use raw SQL — supabase-js doesn't expose it directly
-    // Try rpc with a generic helper. If it doesn't exist, this will fail.
-    const grants = await sb.rpc('get_table_grants', {
-      schema_name: 'morning_brief_v2',
-      table_name: 'jobs',
-    });
-    out.grants_rpc = grants;
+    const r = await sb.schema('morning_brief_v2').from('jobs').insert({
+      script: '__diag__',
+      payload: { date: '1970-01-01' },
+    }).select().single();
+    out.insert = r.error ? { ok: false, code: r.error.code, msg: r.error.message, details: r.error.details }
+                          : { ok: true, id: r.data?.id };
   } catch (e) {
-    out.grants_rpc_error = String(e);
+    out.insert = { exception: String(e) };
+  }
+
+  // 3) Try insert via RPC call_next_job (which is in public schema and SECURITY DEFINER)
+  // If this works, the table exists and we can write, just not via REST.
+  try {
+    const r = await sb.rpc('claim_next_job');
+    out.claim_rpc = r.error ? { ok: false, code: r.error.code, msg: r.error.message }
+                              : { ok: true, data: r.data };
+  } catch (e) {
+    out.claim_rpc = { exception: String(e) };
   }
 
   return res.status(200).json(out);
