@@ -48,19 +48,27 @@ SECURITY DEFINER RPC.
 
 ## Grants на таблицу (Supabase → SQL editor)
 
-`pult/schema.sql` создаёт таблицу, но **не выдаёт grant'ы роли `service_role`**.
-Без них Vercel Function получает `42501 permission denied` при INSERT.
+`pult/schema.sql` создаёт таблицу, но **выдаёт grants только ролям
+`authenticator` и `service_role`**. Этого достаточно для Vercel Function
+с service_role JWT.
 
-После первого запуска выполни в Supabase SQL editor:
+Если grant'ов нет — Vercel Function получает `42501 permission denied`
+при INSERT (это происходит потому что PostgREST подключается как
+`authenticator`, и grants проверяются для login role, а не для
+current_user из JWT claim).
+
+Примените `pult/schema.sql` целиком — grants уже включены в конец файла.
+
+Если таблица уже создана и grant'ов не хватает, выполните:
 
 ```sql
-grant insert, update, delete on morning_brief_v2.jobs to service_role;
-grant usage, select on sequence morning_brief_v2.jobs_id_seq to service_role;
+grant insert, update, delete, select on morning_brief_v2.jobs to authenticator, service_role;
+grant usage, select on sequence morning_brief_v2.jobs_id_seq to authenticator, service_role;
+NOTIFY pgrst, 'reload schema';
 ```
 
-**Альтернатива** (если хочешь, чтобы schema.sql был полным):
-добавь эти строки в `pult/schema.sql` **перед** строкой `notify pgrst`.
-Тогда при следующем деплое на новый Supabase-проект всё применится сразу.
+**Диагностика:** `https://rus-morning-brief.vercel.app/api/diag?key=<PULT_SHARED_SECRET>`
+показывает `has_table_insert_for_*` для каждой роли.
 
 ## Что делает RPC
 
