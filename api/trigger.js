@@ -1,6 +1,12 @@
 // /root/morning_brief_v2/api/trigger.js
 // POST /api/trigger?script=<name>&key=<shared-secret>
 // Body: { "date": "YYYY-MM-DD" }  (optional, defaults to today UTC)
+//
+// Architecture: Uses SECURITY DEFINER RPC public.insert_job() instead of
+// direct .from('jobs').insert() because supabase-js .schema() doesn't
+// properly route INSERTs through the Accept-Profile header in this Supabase
+// setup — it lands on public.jobs (which doesn't exist) and returns 42501.
+//
 // Returns 200: { job_id, status, dedup }
 // Returns 401 if key wrong; 400 if script unknown; 500 on Supabase error.
 
@@ -34,7 +40,6 @@ export default async function handler(req, res) {
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  console.log('[trigger] debug: SUPABASE_URL present?', !!supabaseUrl, 'len=', supabaseUrl?.length, 'SERVICE_ROLE present?', !!serviceKey, 'len=', serviceKey?.length);
   if (!supabaseUrl || !serviceKey) {
     return res.status(500).json({ error: 'server misconfigured: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing' });
   }
@@ -43,54 +48,37 @@ export default async function handler(req, res) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Try insert; on unique violation (23505), return existing job
-  const { data, error } = await sb
-    .schema('morning_brief_v2')
-    .from('jobs')
-    .insert({
-      script,
-      status: 'pending',
-      payload: { date, requested_via: 'vercel' },
-    })
-    .select()
-    .single();
+  // Call SECURITY DEFINER RPC that INSERTs inside the function
+  // (bypasses the supabase-js .schema() routing bug).
+  const { data, error } = await sb.rpc('insert_job', {
+    p_script: script,
+    p_date: date,
+    p_payload_extra: { requested_via: 'vercel' },
+  });
 
   if (!error) {
-    return res.status(200).json({ job_id: data.id, status: data.status, dedup: false });
+    return res.status(200).json(data);
   }
 
-  // 23505 = unique_violation (Postgres code). Supabase may wrap it; check code or message.
-  const isDup = error.code === '23505'
-    || (typeof error.message === 'string' && error.message.includes('jobs_dedup_idx'))
-    || (typeof error.details === 'string' && error.details.includes('jobs_dedup_idx'));
-
-  if (isDup) {
-    // Fetch the existing pending/running job for this script+date
-    const { data: existing, error: selErr } = await sb
-      .schema('morning_brief_v2')
-      .from('jobs')
-      .select('id, status, triggered_at')
-      .eq('script', script)
-      .contains('payload', { date })
-      .in('status', ['pending', 'running'])
-      .order('triggered_at', { ascending: true })
-      .limit(1)
-      .single();
-
-    if (selErr) {
-      return res.status(500).json({ error: 'dedup lookup failed', details: selErr.message });
-    }
-    return res.status(200).json({
-      job_id: existing.id,
-      status: existing.status,
-      dedup: true,
-    });
+  // Diagnostic: return full error to browser as text/plain for easy reading
+  const textBody = `TRIGGER FAILED
+================
+supabase_code:    ${error.code || '(none)'}
+supabase_message: ${error.message || '(none)'}
+supabase_details: ${error.details || '(none)'}
+supabase_hint:    ${error.hint || '(none)'}
+================
+ENV CHECK:
+SUPABASE_URL_len:     ${supabaseUrl?.length || 0}
+SERVICE_ROLE_len:     ${serviceKey?.length || 0}
+`;
+  const accept = req.headers.accept || '';
+  if (accept.includes('text/html')) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.status(500).send(textBody);
   }
-
-  // Return actual Supabase error so we can debug
-  // Both as JSON (for programmatic access) AND as text (for browser viewing)
-  const debugBody = {
-    error: 'insert failed',
+  return res.status(500).json({
+    error: 'insert_job rpc failed',
     supabase_code: error.code,
     supabase_message: error.message,
     supabase_details: error.details,
@@ -99,27 +87,7 @@ export default async function handler(req, res) {
       SUPABASE_URL_len: supabaseUrl?.length || 0,
       SERVICE_ROLE_len: serviceKey?.length || 0,
     },
-  };
-  const textBody = `INSERT FAILED
-================
-supabase_code:    ${error.code || '(none)'}
-supabase_message: ${error.message || '(none)'}
-supabase_details: ${error.details || '(none)'}
-supabase_hint:    ${error.hint || '(none)'}
-----------------
-ENV CHECK:
-SUPABASE_URL_len:     ${supabaseUrl?.length || 0}
-SERVICE_ROLE_len:     ${serviceKey?.length || 0}
-================
-JSON: ${JSON.stringify(debugBody)}`;
-
-  // Browser request? Return text/plain so user can read it directly.
-  const accept = req.headers.accept || '';
-  if (accept.includes('text/html')) {
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(500).send(textBody);
-  }
-  return res.status(500).json(debugBody);
+  });
 }
 
 export const config = {
