@@ -24,6 +24,7 @@ import sys
 import signal
 import subprocess
 import time
+import json
 import traceback
 from datetime import datetime, timezone
 
@@ -70,27 +71,37 @@ _running = False  # set while a job is being processed (for SIGTERM handler)
 
 
 def claim() -> dict | None:
-    """Atomically claim the oldest pending job via RPC."""
+    """Atomically claim the oldest pending job via RPC.
+
+    The public.claim_next_job() RPC was rewritten 2026-07-08 to return jsonb
+    (a single dict) instead of morning_brief_v2.jobs record. This sidesteps
+    PostgREST's type-cache issue (Pitfall §3 + new §38 in morning-brief-v2 skill).
+    """
     try:
         r = sb.rpc('claim_next_job').execute()
-        return r.data[0] if r.data else None
+        if r.data is None or r.data == '':
+            return None
+        # r.data is a jsonb string OR a dict depending on supabase-py version
+        if isinstance(r.data, str):
+            return json.loads(r.data)
+        return r.data
     except Exception as e:
         print(f'[claim] error: {e}', flush=True)
         return None
 
 
 def update_status(job_id: int, status: str, error: str | None = None) -> None:
-    """Update job status, error, finished_at."""
-    payload = {
-        'status': status,
-        'finished_at': datetime.now(timezone.utc).isoformat(),
-    }
-    if error is not None:
-        payload['error'] = error
-    else:
-        payload['error'] = None
+    """Update job status, error, finished_at via SECURITY DEFINER RPC.
+
+    Bypasses supabase-js .schema() routing bug (Pitfall §38) by using
+    update_job_status() RPC that updates from postgres role inside the function.
+    """
     try:
-        sb.table('jobs').update(payload).eq('id', job_id).execute()
+        sb.rpc('update_job_status', {
+            'p_id': job_id,
+            'p_status': status,
+            'p_error': error,
+        }).execute()
     except Exception as e:
         print(f'[update_status {job_id}] error: {e}', flush=True)
 
@@ -106,9 +117,13 @@ def run_one(job: dict) -> None:
         update_status(job_id, 'failed', f'unknown script: {script}')
         return
 
-    # Mark running
+    # Mark running (also via RPC to bypass .schema() bug)
     try:
-        sb.table('jobs').update({'status': 'running'}).eq('id', job_id).execute()
+        sb.rpc('update_job_status', {
+            'p_id': job_id,
+            'p_status': 'running',
+            'p_error': None,
+        }).execute()
     except Exception as e:
         print(f'[mark running] error: {e}', flush=True)
         return  # leave as pending; will be retried next loop
