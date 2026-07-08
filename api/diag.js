@@ -37,8 +37,11 @@ export default async function handler(req, res) {
     try {
       const parts = t.split('.');
       if (parts.length !== 3) return { error: 'not a JWT' };
-      let p = parts[1]; p += '='.repeat((-p.length) % 4);
-      return JSON.parse(Buffer.from(p, 'base64url').toString('utf8'));
+      let p = parts[1];
+      // Manual base64url decode — Buffer.from can throw on negative count.
+      p = p.replace(/-/g, '+').replace(/_/g, '/');
+      while (p.length % 4) p += '=';
+      return JSON.parse(Buffer.from(p, 'base64').toString('utf8'));
     } catch (e) { return { error: String(e) }; }
   }
   out.jwt_claims = decodeJwt(serviceKey);
