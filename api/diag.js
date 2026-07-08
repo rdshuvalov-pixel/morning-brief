@@ -97,6 +97,16 @@ export default async function handler(req, res) {
     out.probes.diag_rpc = { ok: false, err: String(e) };
   }
 
+  // Probe 5: list_recent_jobs (see actual job state)
+  try {
+    const r = await sb.rpc('list_recent_jobs', { p_limit: 10 });
+    out.probes.list_recent = r.error
+      ? { ok: false, code: r.error.code, msg: r.error.message }
+      : { ok: true, count: r.data?.length, jobs: r.data };
+  } catch (e) {
+    out.probes.list_recent = { ok: false, err: String(e) };
+  }
+
   return res.status(200).json(out);
 }
 
