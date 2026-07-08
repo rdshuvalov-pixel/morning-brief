@@ -34,6 +34,7 @@ export default async function handler(req, res) {
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  console.log('[trigger] debug: SUPABASE_URL present?', !!supabaseUrl, 'len=', supabaseUrl?.length, 'SERVICE_ROLE present?', !!serviceKey, 'len=', serviceKey?.length);
   if (!supabaseUrl || !serviceKey) {
     return res.status(500).json({ error: 'server misconfigured: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing' });
   }
