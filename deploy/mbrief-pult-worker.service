@@ -1,0 +1,18 @@
+[Unit]
+Description=Morning-brief pult worker (VPS-side job consumer)
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/morning_brief_v2
+EnvironmentFile=/root/morning_brief_v2/.env
+ExecStart=/root/morning_brief_v2/.venv/bin/python /root/morning_brief_v2/pult/worker.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mbrief-pult
+
+[Install]
+WantedBy=multi-user.target

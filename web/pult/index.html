@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Morning Brief — Pult</title>
+  <link rel="stylesheet" href="/pult/pult.css" />
+  <script src="/pult/pult.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Morning Brief — Pult</h1>
+    <p class="subtitle">Manual triggers for the 8 pipeline steps. Target date: <span id="today-date">…</span></p>
+    <div id="auth-row">
+      <label for="key-input">Pult key:</label>
+      <input type="password" id="key-input" autocomplete="off" placeholder="paste shared secret" />
+      <button id="key-save">Save</button>
+      <span id="auth-state" class="auth-state auth-absent">no key</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="buttons" class="buttons-grid">
+      <!-- Buttons rendered by pult.js (BUT array). 8 placeholders before JS loads. -->
+    </div>
+  </main>
+
+  <div id="status-banner" class="banner" hidden></div>
+
+  <footer>
+    <p>
+      <a href="/" class="back-link">← на главную</a>
+      · 8 кнопок · статусы читаются через <code>/api/status</code>
+    </p>
+  </footer>
+</body>
+</html>

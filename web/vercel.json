@@ -1,4 +1,10 @@
 {
   "cleanUrls": false,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/pult",
+      "destination": "/pult/index.html"
+    }
+  ]
 }
