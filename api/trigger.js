@@ -87,7 +87,18 @@ export default async function handler(req, res) {
     });
   }
 
-  return res.status(500).json({ error: 'insert failed', code: error.code, details: error.message });
+  // Return actual Supabase error so we can debug
+  return res.status(500).json({
+    error: 'insert failed',
+    supabase_code: error.code,
+    supabase_message: error.message,
+    supabase_details: error.details,
+    supabase_hint: error.hint,
+    env_check: {
+      SUPABASE_URL_len: supabaseUrl?.length || 0,
+      SERVICE_ROLE_len: serviceKey?.length || 0,
+    },
+  });
 }
 
 export const config = {
