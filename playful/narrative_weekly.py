@@ -28,6 +28,9 @@ import subprocess
 from typing import Any
 
 logger = logging.getLogger(__name__)
+# Make sure this module's logs reach the root logger (so basicConfig from
+# generate_weekly_recap.py captures them in systemd journal / stderr).
+logger.propagate = True
 
 
 SYSTEM_PROMPT = """Ты пишешь недельный обзор для пользователя, который отслеживает сон, продуктивность и питание.
@@ -160,13 +163,152 @@ def _format_user_prompt(facts: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def compose(facts: dict[str, Any], *, timeout: int = 120) -> dict[str, str] | None:
+REQUIRED_FIELDS = ("headline", "sleep", "work", "nutrition", "next_week")
+# Each field's minimum length to count as "real content". Below this we treat
+# the field as empty and reject the whole payload (forces retry rather than
+# shipping a half-blank recap).
+_MIN_FIELD_LEN = {
+    "headline": 8,   # at least "что-то тут" or 3-6 word headline
+    "sleep": 40,
+    "work": 40,
+    "nutrition": 40,
+    "next_week": 60,  # must be a real recommendation block, not a one-liner
+}
+
+
+def _call_hermes(hermes_bin: str, prompt: str, *, timeout: int, attempt: int) -> tuple[str | None, str]:
+    """Call `hermes -z <prompt>` once. Returns (stdout_or_None, reason).
+
+    `reason` is one of: "ok" | "timeout" | "non-zero" | "empty" | "exception".
+    """
+    try:
+        proc = subprocess.run(
+            [hermes_bin, "-z", prompt],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "narrative_weekly: attempt=%d TIMEOUT after %ds (prompt %d chars)",
+            attempt, timeout, len(prompt))
+        return None, "timeout"
+    except Exception as e:
+        logger.warning(
+            "narrative_weekly: attempt=%d exception: %s: %s",
+            attempt, type(e).__name__, e)
+        return None, "exception"
+
+    if proc.returncode != 0:
+        logger.warning(
+            "narrative_weekly: attempt=%d rc=%d stderr=%r stdout_head=%r",
+            attempt, proc.returncode,
+            proc.stderr[:200], proc.stdout[:200])
+        return None, "non-zero"
+
+    raw = proc.stdout.strip()
+    if not raw:
+        logger.warning(
+            "narrative_weekly: attempt=%d empty stdout", attempt)
+        return None, "empty"
+
+    return raw, "ok"
+
+
+def _parse_response(raw: str, *, attempt: int) -> dict[str, str] | None:
+    """Parse LLM response into the 5-field dict. Strict: rejects half-filled or empty fields.
+
+    Returns None on any failure (caller will retry).
+    """
+    # Strip markdown fence wrapper if present.
+    cleaned = raw
+    if cleaned.startswith("```"):
+        lines = [ln for ln in cleaned.splitlines() if not ln.strip().startswith("```")]
+        cleaned = "\n".join(lines).strip()
+
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        logger.warning(
+            "narrative_weekly: attempt=%d JSON parse failed: %s; raw=%r",
+            attempt, e, raw[:300])
+        return None
+
+    if not isinstance(data, dict) or not set(REQUIRED_FIELDS).issubset(data):
+        missing = set(REQUIRED_FIELDS) - set(data or {})
+        logger.warning(
+            "narrative_weekly: attempt=%d missing keys=%s in keys=%s",
+            attempt, missing, list(data or {}))
+        return None
+
+    # Coerce to stripped strings and check minimal content length.
+    out: dict[str, str] = {}
+    short: list[tuple[str, int]] = []
+    for k in REQUIRED_FIELDS:
+        v = str(data.get(k) or "").strip()
+        if len(v) < _MIN_FIELD_LEN[k]:
+            short.append((k, len(v)))
+        out[k] = v
+
+    if short:
+        logger.warning(
+            "narrative_weekly: attempt=%d too-short fields=%s (min_len=%s)",
+            attempt, short, _MIN_FIELD_LEN)
+        return None
+
+    return out
+
+
+def _short_user_prompt(facts: dict[str, Any]) -> str:
+    """Compact user prompt for retry — only ЗАФИКСИРОВАННЫЕ ЧИСЛА, no FEW_SHOT.
+
+    Used when the first attempt fails (timeout / parse error / half-filled).
+    Shorter prompts respond faster and parse more reliably.
+    """
+    g = facts.get("garmin_weekly") or {}
+    f = facts.get("food_weekly") or {}
+    c = facts.get("calendar_weekly") or {}
+    t = facts.get("tasks_weekly") or {}
+    tr = facts.get("trends") or {}
+    lines = [
+        "Недельный обзор. JSON с 5 полями:",
+        '  "headline": "3-6 слов, провокация. Без точки.",',
+        '  "sleep": "2-4 предложения по сну/HRV/BB.",',
+        '  "work": "2-4 предложения по задачам/встречам/шагам.",',
+        '  "nutrition": "2-4 предложения по калориям/белку.",',
+        '  "next_week": "3-5 конкретных рекомендаций с числами.",',
+        "Только числа ниже. Никаких префиксов. Только валидный JSON.",
+        f"Неделя: {facts.get('week_range', '?')}",
+        f"HRV mean={g.get('mean_hrv')} SleepScore mean={g.get('mean_sleep_score')} "
+        f"BB mean={g.get('mean_body_battery')} Sleep mean_min={g.get('mean_sleep_min')} "
+        f"RHR mean={g.get('mean_rhr')} DeepMin={g.get('min_deep_pct')}",
+        f"Steps sum={g.get('sum_steps')} mean/day={g.get('mean_steps')} "
+        f"Distance sum_km={g.get('sum_distance_km')}",
+        f"Kcal mean/day={f.get('mean_kcal_per_day')} Protein g/day={f.get('mean_protein_g')} "
+        f"CheatDay={f.get('cheat_day_kcal')} TopMeal={f.get('top_meal_by_kcal')}",
+        f"Meetings={c.get('total_meetings')} min={c.get('total_minutes')} "
+        f"busy={c.get('busiest_day')}",
+        f"Tasks unique={t.get('total_unique')} p1={t.get('p1_total')} "
+        f"p2={t.get('p2_total')} p3={t.get('p3_total')}",
+    ]
+    if tr:
+        lines.append("Trends: " + " | ".join(f"{k}={v}" for k, v in tr.items()))
+    return "\n".join(lines)
+
+
+def compose(facts: dict[str, Any], *, timeout: int = 180) -> dict[str, str] | None:
     """Generate weekly recap narrative via Hermes LLM.
+
+    Two-attempt strategy:
+      1. Full prompt (system + few-shot + user prompt) at `timeout` seconds.
+      2. If attempt 1 returns None, retry with a compact prompt (numbers only,
+         no FEW_SHOT) at the same timeout. Both attempts log their reason.
 
     Args:
         facts: dict from generate_weekly_recap.py. Must contain 'week_range'
             and at least one of garmin_weekly/food_weekly/calendar_weekly/tasks_weekly.
-        timeout: subprocess timeout (default 120s).
+        timeout: subprocess timeout per attempt (default 180s).
 
     Returns:
         dict with {headline, sleep, work, nutrition, next_week} or None on failure.
@@ -176,56 +318,29 @@ def compose(facts: dict[str, Any], *, timeout: int = 120) -> dict[str, str] | No
         logger.warning("narrative_weekly: 'hermes' binary not in PATH, skipping LLM call")
         return None
 
-    user_prompt = _format_user_prompt(facts)
-    full_prompt = f"{SYSTEM_PROMPT}\n\n{FEW_SHOT}\n\n{user_prompt}"
+    # Attempt 1: full prompt.
+    full_prompt = f"{SYSTEM_PROMPT}\n\n{FEW_SHOT}\n\n{_format_user_prompt(facts)}"
+    raw, why = _call_hermes(hermes_bin, full_prompt, timeout=timeout, attempt=1)
+    if raw is not None:
+        out = _parse_response(raw, attempt=1)
+        if out is not None:
+            logger.info("narrative_weekly: attempt=1 ok (%d chars headline)", len(out["headline"]))
+            return out
 
-    try:
-        proc = subprocess.run(
-            [hermes_bin, "-z", full_prompt],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        logger.warning("narrative_weekly: hermes -z timed out after %ds", timeout)
-        return None
-    except Exception as e:
-        logger.warning("narrative_weekly: subprocess failed: %s", e)
-        return None
+    # Attempt 2: compact retry. Skip if first failure was non-recoverable
+    # (non-zero exit, hermes missing) — but we already caught that above, so
+    # retry covers timeout/empty/JSON-parse/half-filled.
+    logger.info("narrative_weekly: attempt=1 failed (%s), retrying with compact prompt", why)
+    short_prompt = _short_user_prompt(facts)
+    raw, why2 = _call_hermes(hermes_bin, short_prompt, timeout=timeout, attempt=2)
+    if raw is not None:
+        out = _parse_response(raw, attempt=2)
+        if out is not None:
+            logger.info("narrative_weekly: attempt=2 ok (%d chars headline)", len(out["headline"]))
+            return out
 
-    if proc.returncode != 0:
-        logger.warning("narrative_weekly: hermes exit %d, stderr=%s", proc.returncode, proc.stderr[:200])
-        return None
-
-    raw = proc.stdout.strip()
-    if not raw:
-        logger.warning("narrative_weekly: hermes returned empty stdout")
-        return None
-
-    if raw.startswith("```"):
-        lines = [ln for ln in raw.splitlines() if not ln.strip().startswith("```")]
-        raw = "\n".join(lines).strip()
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        logger.warning("narrative_weekly: JSON parse failed: %s; raw=%r", e, raw[:300])
-        return None
-
-    required = {"headline", "sleep", "work", "nutrition", "next_week"}
-    if not isinstance(data, dict) or not required.issubset(data):
-        logger.warning("narrative_weekly: missing keys %s in %s", required - set(data or {}), list(data or {}))
-        return None
-
-    out = {k: str(data[k]).strip() for k in required}
-
-    # Send any empty/None fields back as "—" so renderer handles it gracefully
-    for k in required:
-        if not out[k]:
-            out[k] = "—"
-
-    return out
+    logger.warning("narrative_weekly: both attempts failed (last reason: %s)", why2)
+    return None
 
 
 def render_for_telegram(out: dict[str, str], *, week_range: str) -> str:

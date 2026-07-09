@@ -154,6 +154,15 @@ def run_one(job: dict) -> None:
     # gws-cli blocks on OAuth URL display. Set TERM=dumb (non-interactive).
     env['TERM'] = 'dumb'
 
+    # Special case: weekly-recap script invokes `hermes -z` which keys off
+    # $HOME for picking the LLM provider config. When HOME=/root (interactive
+    # shell) hermes uses the correct MiniMax provider (M3). When
+    # HOME=/root/.hermes/profiles/developer/home (this worker's systemd unit)
+    # hermes appears to hang on -z calls. Force HOME=/root only for this
+    # script — the unit HOME stays for gws-cli OAuth in other scripts.
+    if script == 'weekly-recap':
+        env['HOME'] = '/root'
+
     # DIAG (2026-07-09): print env that subprocess gets — debugging calendar hang
     print(f'[run_one] job={job_id} env dump:', flush=True)
     print(f'  PATH={env.get("PATH")}', flush=True)
