@@ -148,6 +148,9 @@ def run_one(job: dict) -> None:
     if HERMES_BIN_DIR not in env.get('PATH', '').split(':'):
         env['PATH'] = f"{HERMES_BIN_DIR}:{env.get('PATH', '')}"
     env['PYTHONUNBUFFERED'] = '1'
+    # gws-cli OAuth handshake needs TERM to determine TTY mode; without it
+    # gws-cli blocks on OAuth URL display. Set TERM=dumb (non-interactive).
+    env['TERM'] = 'dumb'
 
     # DIAG (2026-07-09): print env that subprocess gets — debugging calendar hang
     print(f'[run_one] job={job_id} env dump:', flush=True)
