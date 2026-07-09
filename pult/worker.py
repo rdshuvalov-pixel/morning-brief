@@ -149,12 +149,21 @@ def run_one(job: dict) -> None:
         env['PATH'] = f"{HERMES_BIN_DIR}:{env.get('PATH', '')}"
     env['PYTHONUNBUFFERED'] = '1'
 
+    # DIAG (2026-07-09): print env that subprocess gets — debugging calendar hang
+    print(f'[run_one] job={job_id} env dump:', flush=True)
+    print(f'  PATH={env.get("PATH")}', flush=True)
+    print(f'  HOME={env.get("HOME")}', flush=True)
+    print(f'  LANG={env.get("LANG")}', flush=True)
+    print(f'  SHELL={env.get("SHELL")}', flush=True)
+    print(f'  TERM={env.get("TERM")}', flush=True)
+    print(f'  PWD={env.get("PWD")}', flush=True)
+
     try:
         proc = subprocess.run(
             cmd,
             cwd=PROJECT_ROOT,
             env=env,
-            stdin=subprocess.DEVNULL,  # explicit: don't inherit (some subprocesses hang on TTY)
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             timeout=timeout,
         )
