@@ -154,6 +154,7 @@ def run_one(job: dict) -> None:
             cmd,
             cwd=PROJECT_ROOT,
             env=env,
+            stdin=subprocess.DEVNULL,  # explicit: don't inherit (some subprocesses hang on TTY)
             capture_output=True,
             timeout=timeout,
         )
