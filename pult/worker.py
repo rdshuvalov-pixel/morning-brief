@@ -38,6 +38,7 @@ SUPABASE_KEY = os.environ['SUPABASE_KEY']
 PROJECT_ROOT = '/root/morning_brief_v2'
 
 # Map: script-name -> shell command (no date — scripts compute it themselves)
+# LLM scripts run via venv python (system python lacks deps → ModuleNotFoundError).
 SCRIPTS = {
     'garmin-yesterday': ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_garmin_yesterday.sh'],
     'garmin-today':     ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_garmin_today.sh'],
@@ -45,20 +46,22 @@ SCRIPTS = {
     'calendar':         ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_calendar.sh'],
     'todoist':          ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_todoist.sh'],
     'food':             ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_food.sh'],
-    'llm':              ['bash', f'{PROJECT_ROOT}/scripts/manual/generate_llm.sh'],
+    'llm':              [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm.py', '--write'],
     'render-publish':   ['bash', f'{PROJECT_ROOT}/scripts/manual/archive_and_publish.sh'],
 }
 
-# Per-script timeout in seconds (Pitfall §29: render+publish can be 180-300s)
+# Per-script timeout in seconds.
+# Calendar gets 120s (Google Calendar API is slow on cold start; was timing out at 60s
+# when fetched via worker, but runs in ~9s when invoked manually — see diag 2026-07-09).
 TIMEOUTS = {
     'garmin-yesterday': 60,
     'garmin-today':     60,
     'weather':          60,
-    'calendar':         60,
+    'calendar':         120,  # was 60; bumped because Google API slow on cold start
     'todoist':          60,
     'food':             60,
-    'llm':              180,   # LLM is slow (Pitfall §7: 45s timeout in hermes -z)
-    'render-publish':   600,   # archive_and_publish.sh full pipeline
+    'llm':              180,  # LLM is slow (Pitfall §7: 45s timeout in hermes -z)
+    'render-publish':   600,  # archive_and_publish.sh full pipeline
 }
 
 # Reaper threshold: running jobs older than this are marked orphaned
@@ -131,10 +134,10 @@ def run_one(job: dict) -> None:
     cmd = SCRIPTS[script]
     timeout = TIMEOUTS[script]
 
-    # LLM script needs --date and --write flags
+    # LLM script also needs --date (already added 'llm' as full venv python path,
+    # but date arg comes after the script path)
     if script == 'llm':
-        llm_path = f'{PROJECT_ROOT}/scripts/manual/generate_llm.py'
-        cmd = ['python3', llm_path, '--date', date, '--write']
+        cmd = list(cmd) + ['--date', date]
 
     env = {**os.environ, 'PYTHONUNBUFFERED': '1'}
 
