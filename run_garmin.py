@@ -32,6 +32,7 @@ import asyncio
 import logging
 import sys
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, "/root/morning_brief_v2")
 
@@ -40,6 +41,13 @@ from providers.garmin import GarminProvider                 # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("garmin_runner")
+
+# Operator's local timezone (Europe/Lisbon). Garmin Connect's "today" is
+# defined by the user's local clock, not UTC — when a Lisbon 00:30 cron
+# runs, UTC is still 23:30 of the previous day, so date.today() would
+# incorrectly classify the target as "yesterday" and skip settled-drop.
+# See skill Pitfall §24a (TZ drift).
+_LOCAL_TZ = ZoneInfo("Europe/Lisbon")
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,14 +104,43 @@ async def run_for_date(target: date, provider: GarminProvider) -> int:
 
     metrics = result.data
     logger.info(
-        "Garmin metrics fetched: body_battery=%s hrv=%s rhr=%s sleep=%smin deep=%s%% tr=%s",
+        "Garmin metrics fetched: body_battery=%s hrv=%s rhr=%s sleep=%smin deep=%s%% tr=%s steps=%s",
         metrics.get("body_battery"),
         metrics.get("hrv"),
         metrics.get("rhr"),
         metrics.get("sleep_duration_min"),
         metrics.get("deep_sleep_pct"),
         metrics.get("training_readiness"),
+        metrics.get("total_steps"),
     )
+
+    # Day-boundary split (live vs settled), 2026-07-06 fix.
+    #
+    # Garmin Connect for a target date that is *not yet closed* (today's date
+    # when called mid-morning) returns the FULL payload — including settled
+    # metrics like body_battery, sleep_duration_min, sleep_score, hrv — but
+    # those values are really the previous day's settled numbers being
+    # re-echoed by the API. Writing the whole payload to garmin_metrics[date=today]
+    # therefore produced a row that claimed to be today's data but contained
+    # yesterday's numbers — a silent duplicate, hard to spot because
+    # `id`/`date` differ but the numbers do not.
+    #
+    # Fix: when target is *not closed* yet (i.e. target_date >= today in the
+    # operator's local timezone), keep ONLY the fields that genuinely update
+    # intraday. Everything else is settled and belongs to yesterday.
+    today_local = datetime.now(_LOCAL_TZ).date()
+    if target >= today_local:
+        dropped = []
+        for k in ("body_battery", "hrv",
+                  "sleep_duration_min", "sleep_score", "deep_sleep_pct"):
+            if k in metrics:
+                metrics.pop(k)
+                dropped.append(k)
+        if dropped:
+            logger.info(
+                "target=%s is unclosed today -> dropped settled-only fields %s",
+                t_str, dropped,
+            )
 
     brief = upsert_brief(t_str)
     brief_id = brief.get("id") if brief else None

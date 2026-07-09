@@ -1,13 +1,27 @@
 #!/usr/bin/env python3
-"""Pre-flight data check before morning brief render.
+"""Pre/post-flight data check for morning brief render.
 
 Verifies that all required providers have written fresh data for the target
-date. Exits 0 if ready, 2 if data missing (caller should retry later),
-3 if auth/infrastructure is broken.
+date.
+
+History (2026-07-05 bug B fix): this script used to gate the render — if any
+required row was missing, rc=2 told render_with_retry.sh to retry. That made
+the script block on data races (e.g. Garmin hrv not yet settled by 08:30)
+and the retry loop blew the Hermes 120s budget. Now the render itself writes
+all provider data, so this script's role is post-flight validation: warn
+about missing fields, but never block the render.
+
+Exit codes:
+    0  All required data present
+    1  Some data missing — caller decides what to do (do NOT auto-retry)
+    3  Infrastructure broken (auth, schema, etc.)
 
 Required fields (per provider, for `target`):
-  garmin_metrics   : body_battery, hrv, rhr, sleep_duration_min, total_steps
+  garmin_metrics   : body_battery, rhr, sleep_duration_min, total_steps
                      (must exist in DB for target date)
+                     hrv is OPTIONAL — Garmin API only returns HRV for
+                     "settled" days (yesterday), not for "today" (live mode).
+                     See references/garmin-data-race.md.
   briefs           : row must exist for target date
   weather_log      : at least 1 row for target date
   tasks            : at least 1 row for target date
@@ -17,11 +31,6 @@ Required fields (per provider, for `target`):
 Usage:
     ./.venv/bin/python preflight_check.py --date 2026-07-02
     ./.venv/bin/python preflight_check.py                # uses today (Lisbon)
-
-Exit codes:
-    0  All required data present
-    2  Some data missing — caller should retry
-    3  Infrastructure broken (auth, schema, etc.)
 """
 from __future__ import annotations
 
@@ -104,7 +113,7 @@ def main() -> int:
         log.error("briefs query failed: %s", e)
         problems.append("briefs query failed (infrastructure)")
 
-    # 2) Garmin metrics — required
+    # 2) Garmin metrics — required (HRV excluded — see header docstring)
     try:
         r = sb.table("garmin_metrics").select(
             "body_battery,hrv,rhr,sleep_duration_min,total_steps,sleep_score"
@@ -113,17 +122,21 @@ def main() -> int:
         if not m or not isinstance(m, dict):
             problems.append(f"garmin_metrics row for {target_str} missing")
         else:
-            required = ["body_battery", "hrv", "rhr", "sleep_duration_min", "total_steps"]
+            # hrv omitted: Garmin API only returns HRV for settled days.
+            required = ["body_battery", "rhr", "sleep_duration_min", "total_steps"]
             missing_fields = [f for f in required if m.get(f) is None]
+            hrv_note = ""
+            if m.get("hrv") is None:
+                hrv_note = " (hrv=None — live mode, expected)"
             if missing_fields:
                 problems.append(
                     f"garmin_metrics for {target_str} missing fields: {missing_fields}"
                 )
             else:
-                log.info("garmin_metrics: bb=%s hrv=%s rhr=%s sleep=%smin steps=%s score=%s",
+                log.info("garmin_metrics: bb=%s hrv=%s rhr=%s sleep=%smin steps=%s score=%s%s",
                          m.get("body_battery"), m.get("hrv"), m.get("rhr"),
                          m.get("sleep_duration_min"), m.get("total_steps"),
-                         m.get("sleep_score"))
+                         m.get("sleep_score"), hrv_note)
     except Exception as e:
         log.error("garmin_metrics query failed: %s", e)
         problems.append("garmin_metrics query failed (infrastructure)")
@@ -175,10 +188,12 @@ def main() -> int:
         log.warning("food_log query failed (non-fatal): %s", e)
 
     if problems:
-        log.warning("preflight FAIL for %s:", target_str)
+        # Post-flight: WARN, don't block. Caller treats rc=1 as advisory.
+        log.warning("preflight issues for %s (non-blocking):", target_str)
         for p in problems:
             log.warning("  - %s", p)
-        return 2
+        log.warning("rc=1 (advisory only; render is still valid with partial data)")
+        return 1
 
     log.info("preflight OK for %s — all required data present", target_str)
     return 0

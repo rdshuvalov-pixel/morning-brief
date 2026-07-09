@@ -40,6 +40,14 @@ SYSTEM_PROMPT = """Ты пишешь мотивационные тексты д�
   "footer_text": "1-3 предложения. Actionable сводка."
 }
 
+ПРАВИЛА РАБОТЫ С ЧИСЛАМИ (КРИТИЧНО):
+1. Ниже в user_prompt будет блок «ЗАФИКСИРОВАННЫЕ ЧИСЛА» — используй ТОЛЬКО эти числа.
+2. Если какого-то числа нет в блоке (НЕТ ДАННЫХ) — НЕ выдумывай. Либо не упоминай
+   это поле, либо честно скажи «без данных по X».
+3. НИКОГДА не округляй, не меняй и не придумывай альтернативные числа.
+4. Все остальные данные (задачи, погода, календарь) бери строго из разделов
+   user_prompt, не из общих знаний.
+
 Никаких префиксов вроде "Вот JSON:" — только валидный JSON.
 """
 
@@ -59,10 +67,52 @@ footer_text: "Топ-задача — «Изучить dikidi…». Погода
 
 
 def _format_user_prompt(facts: dict[str, Any]) -> str:
-    """Build a compact user prompt with today's metrics as facts."""
+    """Build a compact user prompt with today's metrics as facts.
+
+    Layout:
+      [1] ЗАФИКСИРОВАННЫЕ ЧИСЛА — only what the LLM is allowed to cite
+      [2] Контекст — narrative-friendly: батарейка/сон/HRV/движение/погода/задачи
+    """
     lines = [f"Дата брифа: {facts.get('brief_date', 'unknown')}."]
     lines.append("")
-    lines.append("Метрики (используй, но не перечисляй все подряд — выбери 2-3 ярких):")
+
+    # ── [1] ЗАФИКСИРОВАННЫЕ ЧИСЛА ────────────────────────────────────────
+    # Все числа, которые LLM имеет право использовать. Если None → "НЕТ ДАННЫХ".
+    lines.append("ЗАФИКСИРОВАННЫЕ ЧИСЛА (используй только эти; ничего не выдумывай):")
+
+    def _line(key: str, label: str, fmt: str = "{}") -> str:
+        v = facts.get(key)
+        if v is None or v == "":
+            return f"  - {label}: НЕТ ДАННЫХ"
+        try:
+            return f"  - {label}: {fmt.format(v)}"
+        except Exception:
+            return f"  - {label}: {v}"
+
+    lines.append(_line("body_battery",          "Body Battery (0-100)"))
+    bb_delta = facts.get("body_battery_delta")
+    if bb_delta is not None:
+        sign = "+" if bb_delta >= 0 else ""
+        lines.append(f"  - Body Battery vs вчера: {sign}{bb_delta}")
+    lines.append(_line("sleep_label",           "Сон (длительность)"))
+    lines.append(_line("sleep_score",           "Sleep Score (0-100)"))
+    lines.append(_line("hrv",                   "HRV (мс)"))
+    lines.append(_line("rhr",                   "Пульс покоя (уд/мин)"))
+    lines.append(_line("stress",                "Стресс (0-100)"))
+    lines.append(_line("spo2",                  "SpO2 (%)"))
+    lines.append(_line("steps_yesterday",       "Шаги вчера"))
+    bal = facts.get("balance")
+    if bal is not None:
+        sign = "+" if bal >= 0 else ""
+        lines.append(f"  - Баланс калорий вчера: {sign}{bal} ккал")
+    else:
+        lines.append("  - Баланс калорий вчера: НЕТ ДАННЫХ")
+    lines.append(_line("weather_summary",       "Погода днём"))
+    lines.append(_line("tasks_count",           "Задач на сегодня"))
+    lines.append(_line("top_task",              "Топ-задача"))
+
+    lines.append("")
+    lines.append("[2] Контекст (для интерпретации, числа уже выше):")
 
     # Battery
     bb = facts.get("body_battery")
@@ -311,8 +361,11 @@ battery: {"opinion": "97 батарейка после 5ч 58м сна — не 
 def _format_opinion_prompt(block_name: str, facts: dict[str, Any]) -> str:
     """Per-block user prompt with relevant facts."""
     if block_name == "weather":
-        cond = facts.get("condition", "—")
-        day_t = facts.get("temp_day", "—")
+        # facts shape: {"morning": {...}, "day": {...}, "evening": {...}}
+        # The LLM prompt for weather only needs the *day* slot.
+        day = (facts or {}).get("day") or {}
+        cond = day.get("condition_day") or day.get("condition", "—")
+        day_t = day.get("temp_day") or day.get("temp", "—")
         return f"Погода сегодня: {cond}, днём {day_t}°. Дай одно предложение — стоит ли выходить на улицу или посидеть дома."
 
     if block_name == "tasks":

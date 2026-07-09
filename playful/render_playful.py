@@ -1100,6 +1100,7 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         get_weather_log,
         get_calendar_events,
         get_tasks,
+        get_brief,
     )
 
     garmin_row = get_garmin_metrics(brief_date)
@@ -1144,142 +1145,45 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         or ((helio_yesterday or {}).get("spo2"))
     )
 
-    # ── Narrative (LLM via Hermes gateway) ──
-    # Compose a facts dict and ask Hermes to generate the 4 narrative fields.
-    # On any failure (hermes missing / timeout / bad JSON), fall back to the
-    # short static defaults below. Re-runs produce fresh text each time
-    # (no cache) by design — see memory note "narrative no cache 28.06".
-    from playful.narrative import compose as _narrative_compose
-
-    garmin_today = _map_garmin_row(garmin_row) or {}
-    sleep_min = garmin_today.get("sleep_duration_min")
-    sleep_label = _minutes_to_label(sleep_min) if sleep_min else None
-    sleep_score = garmin_today.get("sleep_score")
-    sleep_pill_text, _ = _sleep_pill(sleep_score) if sleep_score is not None else (None, None)
-    # steps_yesterday + balance: we need the same numbers the movement block uses
-    movement_src = _map_garmin_row(garmin_yesterday) or {}
-    helio_movement_src = helio_yesterday or {}
-    steps_yest = movement_src.get("totalSteps") or helio_movement_src.get("steps")
-    kcal_burned_yest = (movement_src.get("resting_kcal") or 0) + (movement_src.get("active_kcal") or 0)
-    kcal_eaten_yest = sum((e.get("kcal") or 0) for e in _map_food_rows(food_rows))
-    balance_yest = kcal_eaten_yest - kcal_burned_yest if (kcal_eaten_yest or kcal_burned_yest) else None
-
-    weather_today_str = None
-    if weather_rows:
-        day_w = next((w for w in weather_rows if w.get("period") == "day"), None)
-        if day_w:
-            weather_today_str = f"{day_w.get('condition', '?')}, {day_w.get('temp')}°"
-
-    tasks_sorted_for_narr = sorted(
-        _map_task_rows(task_rows),
-        key=lambda t: (t.get("priority") or 4, t.get("title") or ""),
+    # ── Narrative + opinions: read from briefs.narrative (DB), no LLM at render time ──
+    # Per project decision 2026-07-08: render is fully deterministic.
+    # Narrative generation lives ONLY in scripts/manual/generate_llm.py
+    # (writes to briefs.narrative as JSON). Render simply reads it.
+    # If DB row missing or JSON malformed → static fallback (same defaults
+    # as the legacy "Hermes unavailable" path).
+    import json as _json
+    _narrative_headline = f"Утро {brief_date.strftime('%-d %B')}"
+    _narrative_summary = (
+        "Утренний бриф собран из живых данных. "
+        "Нарратив-NLG не подключен — текст ниже дефолтный."
     )
-    top_task_title = (tasks_sorted_for_narr[0].get("title") or "") if tasks_sorted_for_narr else None
+    _narrative_footer_title = "Хорошее начало"
+    _narrative_footer_text = (
+        "Бриф собран. Проверь ресурс утром и не отдавай сильное утро мелочам."
+    )
+    op_weather = op_tasks = op_movement = op_calendar = op_battery = None
 
-    narrative_facts = {
-        "brief_date": brief_date.isoformat(),
-        "body_battery": garmin_today.get("body_battery"),
-        "body_battery_delta": body_battery_delta,
-        "sleep_label": sleep_label,
-        "sleep_score": sleep_score,
-        "sleep_pill": sleep_pill_text,
-        "hrv": garmin_today.get("hrv"),
-        "rhr": garmin_today.get("rhr"),
-        "stress": garmin_today.get("stress"),
-        "spo2": garmin_today.get("spo2"),
-        "steps_yesterday": steps_yest,
-        "balance": balance_yest,
-        "weather_summary": weather_today_str,
-        "tasks_count": len(task_rows),
-        "top_task": top_task_title,
-    }
-
-    narrative = _narrative_compose(narrative_facts)
-    if narrative:
-        _narrative_headline = narrative["headline"]
-        _narrative_summary = narrative["lead"]
-        _narrative_footer_title = narrative["footer_title"]
-        _narrative_footer_text = narrative["footer_text"]
-        logger.info("narrative: Hermes returned 4 fields")
-    else:
-        _narrative_headline = f"Утро {brief_date.strftime('%-d %B')}"
-        _narrative_summary = (
-            "Утренний бриф собран из живых данных. "
-            "Нарратив-NLG не подключен — текст ниже дефолтный."
-        )
-        _narrative_footer_title = "Хорошее начало"
-        _narrative_footer_text = (
-            "Бриф собран. Проверь ресурс утром и не отдавай сильное утро мелочам."
-        )
-        logger.info("narrative: Hermes unavailable, using fallback defaults")
-
-    # ── Block opinions (5 параллельных вызовов hermes через asyncio.gather) ──
-    # Per-block 1-sentence commentary shown at the bottom of each card.
-    # Run via asyncio.run since fetch_live_context is sync — opinion calls
-    # are wall-clock parallel, so total latency ~ slowest single call
-    # (default 30s timeout per call, with gather all fire simultaneously).
-    from playful.narrative import compose_all_opinions
-
-    # Build per-block facts
-    weather_day_facts = facts_dict_for("weather", weather_rows)
-    tasks_facts = facts_dict_for("tasks", task_rows, top_task_title)
-    movement_facts = {
-        "steps_yesterday": steps_yest,
-        "balance_yesterday": balance_yest,
-        "kcal_eaten_yesterday": kcal_eaten_yest,
-        "kcal_burned_yesterday": kcal_burned_yest,
-    }
-    calendar_facts = facts_dict_for("calendar", calendar_rows)
-    battery_facts = {
-        "body_battery": garmin_today.get("body_battery"),
-        "sleep_label": sleep_label,
-        "sleep_score": sleep_score,
-        "hrv": garmin_today.get("hrv"),
-    }
-    block_facts = {
-        "weather": weather_day_facts,
-        "tasks": tasks_facts,
-        "movement": movement_facts,
-        "calendar": calendar_facts,
-        "battery": battery_facts,
-    }
-
-    try:
-        # If we're already inside an event loop (e.g. run_all.py uses asyncio
-        # for parallel providers), we cannot use asyncio.run(). Schedule on
-        # the running loop instead via run_coroutine_threadsafe isn't an
-        # option here either (we're on the same thread), so just await
-        # directly via loop.run_until_complete when not in a loop, or
-        # via a sync wrapper using a new loop when in one.
-        import asyncio as _aio
+    brief_row = get_brief(brief_date) or {}
+    narrative_blob = brief_row.get("narrative")
+    if narrative_blob:
         try:
-            _aio.get_running_loop()
-            # Inside a running loop → spin up a fresh loop in a worker thread
-            import concurrent.futures as _cf
-            with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
-                opinions = _pool.submit(
-                    lambda: _aio.run(compose_all_opinions(block_facts))
-                ).result()
-        except RuntimeError:
-            # Not in a loop → safe to use asyncio.run
-            opinions = _aio.run(compose_all_opinions(block_facts))
-    except Exception as e:
-        logger.warning("opinions: dispatch failed (%s), skip", e)
-        opinions = {b: None for b in block_facts}
-
-    op_weather = opinions.get("weather")
-    op_tasks = opinions.get("tasks")
-    op_movement = opinions.get("movement")
-    op_calendar = opinions.get("calendar")
-    op_battery = opinions.get("battery")
-    logger.info(
-        "opinions: weather=%s tasks=%s movement=%s calendar=%s battery=%s",
-        "ok" if op_weather else "—",
-        "ok" if op_tasks else "—",
-        "ok" if op_movement else "—",
-        "ok" if op_calendar else "—",
-        "ok" if op_battery else "—",
-    )
+            _n = _json.loads(narrative_blob) if isinstance(narrative_blob, str) else narrative_blob
+            _narrative_headline = _n.get("headline") or _narrative_headline
+            _narrative_summary = _n.get("lead") or _narrative_summary
+            _narrative_footer_title = _n.get("footer_title") or _narrative_footer_title
+            _narrative_footer_text = _n.get("footer_text") or _narrative_footer_text
+            _ops = _n.get("opinions") or {}
+            op_weather = _ops.get("weather")
+            op_tasks = _ops.get("tasks")
+            op_movement = _ops.get("movement")
+            op_calendar = _ops.get("calendar")
+            op_battery = _ops.get("battery")
+            logger.info("narrative: from briefs.narrative (4 fields + %d opinions)",
+                        sum(1 for x in (op_weather, op_tasks, op_movement, op_calendar, op_battery) if x))
+        except (_json.JSONDecodeError, TypeError) as e:
+            logger.warning("narrative: briefs.narrative is not valid JSON (%s), using fallback", e)
+    else:
+        logger.info("narrative: briefs.narrative empty, using fallback defaults")
 
     return {
         "brief_date": brief_date,

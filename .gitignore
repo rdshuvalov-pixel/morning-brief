@@ -19,3 +19,4 @@ venv/
 *.zip
 gps_*.bin
 *_pak.bin
+.vercel
