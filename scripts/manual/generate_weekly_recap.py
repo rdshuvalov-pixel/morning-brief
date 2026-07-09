@@ -460,7 +460,8 @@ def main() -> int:
         if not out:
             log.error(f"--send-only: no 'narrative' key in {path}")
             return 2
-        pages = render_for_telegram_pages(out, week_range=week_range)
+        facts_cached = payload.get("facts")
+        pages = render_for_telegram_pages(out, week_range=week_range, facts=facts_cached)
         log.info(f"Sending {len(pages)} cached page(s) for {week_range}")
         delivered = 0
         skipped = 0
@@ -501,7 +502,8 @@ def main() -> int:
             log.warning("LLM call returned None — falling back to deterministic recap")
 
     text = _deterministic_recap(facts, out)
-    pages = render_for_telegram_pages(out, week_range=facts["week_range"]) if out else [text]
+    pages = (render_for_telegram_pages(out, week_range=facts["week_range"], facts=facts)
+             if out else [text])
     # If deterministic, `pages` may be 1 entry; otherwise send all
     if not out:
         pages = [text]

@@ -343,10 +343,64 @@ def compose(facts: dict[str, Any], *, timeout: int = 180) -> dict[str, str] | No
     return None
 
 
-def render_for_telegram(out: dict[str, str], *, week_range: str) -> str:
+def _format_summary_block(facts: dict[str, Any] | None) -> str:
+    """Compact numerical summary from the weekly facts dict.
+
+    Rendered AFTER the LLM narrative (always in LLM mode, never in fallback).
+    ~8 lines, intended for at-a-glance comparison between weeks. Built from
+    the SAME facts dict that goes into compose(), so numbers cannot drift.
+    """
+    if not facts:
+        return ""
+
+    g = facts.get("garmin_weekly") or {}
+    f = facts.get("food_weekly") or {}
+    c = facts.get("calendar_weekly") or {}
+    t = facts.get("tasks_weekly") or {}
+    tr = facts.get("trends") or {}
+
+    def _g(key, default="—"):
+        v = g.get(key)
+        return default if v is None else str(v)
+
+    def _f(key, default="—"):
+        v = f.get(key)
+        return default if v is None else str(v)
+
+    def _c(key, default="—"):
+        v = c.get(key)
+        return default if v is None else str(v)
+
+    def _t(key, default="—"):
+        v = t.get(key)
+        return default if v is None else str(v)
+
+    lines = [
+        "📈 *Сводка*",
+        f"🛌 {_g('mean_sleep_min')} мин сна · HRV {_g('mean_hrv')} "
+        f"· BB {_g('mean_body_battery')} · SS {_g('mean_sleep_score')}",
+        f"🍽 {_f('mean_kcal_per_day')} ккал · {_f('mean_protein_g')}g белка "
+        f"({_f('log_days')}/7 дней)",
+        f"📅 {_c('total_meetings')} встреч {_c('total_minutes')} мин "
+        f"· busy {_c('busiest_day')}",
+        f"✅ {_t('total_unique')} задач (P1 {_t('p1_total')}, "
+        f"P2 {_t('p2_total')}, P3 {_t('p3_total')})",
+    ]
+    if tr:
+        lines.append("")
+        lines.append("*vs прошлая:*")
+        for k, v in tr.items():
+            lines.append(f"  {v}")
+    return "\n".join(lines)
+
+
+def render_for_telegram(out: dict[str, str], *, week_range: str,
+                        facts: dict[str, Any] | None = None) -> str:
     """Format the 5-field dict as a single Telegram message (markdown).
 
     Splits at 3500 chars if needed (TG limit 4096 with margin).
+    If `facts` is provided, appends a compact numerical summary block AFTER
+    the LLM narrative so the user gets both prose and at-a-glance numbers.
     """
     parts = []
     parts.append(f"📊 *Weekly Recap — {week_range}*")
@@ -360,6 +414,10 @@ def render_for_telegram(out: dict[str, str], *, week_range: str) -> str:
     parts.append(f"*🍽 Питание*\n{out.get('nutrition', '—').strip()}")
     parts.append("")
     parts.append(f"*🎯 На следующую неделю*\n{out.get('next_week', '—').strip()}")
+    summary = _format_summary_block(facts)
+    if summary:
+        parts.append("")
+        parts.append(summary)
     parts.append("")
     parts.append("— morning_brief_v2 · weekly-recap")
 
@@ -376,21 +434,26 @@ def render_for_telegram(out: dict[str, str], *, week_range: str) -> str:
     return text
 
 
-def render_for_telegram_pages(out: dict[str, str], *, week_range: str) -> list[str]:
+def render_for_telegram_pages(out: dict[str, str], *, week_range: str,
+                              facts: dict[str, Any] | None = None) -> list[str]:
     """Pack the 5 sections into ≤3500-char pages, splitting at section boundaries.
 
     Always uses `_split_into_pages` (NOT `render_for_telegram`'s truncated form),
     so output is deterministic regardless of whether total fits one message.
+    If `facts` is provided, the summary block is appended to the FINAL page so
+    it lands next to the narrative footer rather than splitting across pages.
     """
-    return _split_into_pages(out, week_range)
+    return _split_into_pages(out, week_range, facts=facts)
 
 
-def _split_into_pages(out: dict[str, str], week_range: str) -> list[str]:
+def _split_into_pages(out: dict[str, str], week_range: str,
+                     facts: dict[str, Any] | None = None) -> list[str]:
     """Pack the 5 sections into ≤3500-char pages, splitting at section boundaries.
 
     Always works from the structured sections (NOT from `render_for_telegram`'s
     pre-truncated string), so it correctly handles cases where total exceeds
-    3500 chars after assembling all sections.
+    3500 chars after assembling all sections. Appends summary block (if `facts`
+    given) to the final page alongside the footer.
     """
     sections = [
         f"📊 *Weekly Recap — {week_range}*",
@@ -399,8 +462,13 @@ def _split_into_pages(out: dict[str, str], week_range: str) -> list[str]:
         f"*💼 Работа и задачи*\n{out.get('work', '—').strip()}",
         f"*🍽 Питание*\n{out.get('nutrition', '—').strip()}",
         f"*🎯 На следующую неделю*\n{out.get('next_week', '—').strip()}",
-        "— morning_brief_v2 · weekly-recap",
     ]
+    summary = _format_summary_block(facts)
+    if summary:
+        # Summary goes between narrative and footer so the footer is the LAST line.
+        sections.append(summary)
+    sections.append("— morning_brief_v2 · weekly-recap")
+
     pages: list[str] = []
     cur = ""
     for s in sections:
