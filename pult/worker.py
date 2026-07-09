@@ -139,7 +139,15 @@ def run_one(job: dict) -> None:
     if script == 'llm':
         cmd = list(cmd) + ['--date', date]
 
-    env = {**os.environ, 'PYTHONUNBUFFERED': '1'}
+    # Build subprocess env. Preserve worker's env (loads .env via systemd EnvironmentFile),
+    # but ensure PATH includes Hermes-agent venv bin dir so scripts can find gws-cli
+    # (used by CalendarProvider). This belt-and-suspenders against future changes to
+    # systemd unit's PATH.
+    HERMES_BIN_DIR = '/usr/local/lib/hermes-agent/venv/bin'
+    env = os.environ.copy()
+    if HERMES_BIN_DIR not in env.get('PATH', '').split(':'):
+        env['PATH'] = f"{HERMES_BIN_DIR}:{env.get('PATH', '')}"
+    env['PYTHONUNBUFFERED'] = '1'
 
     try:
         proc = subprocess.run(
