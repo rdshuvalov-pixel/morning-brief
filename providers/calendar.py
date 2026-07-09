@@ -61,6 +61,11 @@ class CalendarProvider(DataProvider):
             proc = await asyncio.create_subprocess_exec(
                 cli, "calendar", "list",
                 "--from", from_iso, "--to", to_iso, "--max", "30",
+                # Explicit stdin=DEVNULL to avoid hangs when gws-cli does OAuth
+                # handshake via TTY: when invoked from a non-interactive subprocess
+                # chain (e.g. systemd worker → bash → python → asyncio), stdin may
+                # be inherited as a closed pipe and gws-cli blocks waiting for it.
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
