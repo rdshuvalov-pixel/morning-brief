@@ -15,7 +15,8 @@ import { createClient } from '@supabase/supabase-js';
 const ALLOWED_SCRIPTS = [
   'garmin-yesterday', 'garmin-today',
   'weather', 'calendar', 'todoist', 'food',
-  'llm', 'render-publish',
+  'llm', 'weekly-recap',
+  'render-publish',
 ];
 
 function todayUtc() {

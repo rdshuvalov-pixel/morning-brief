@@ -47,6 +47,7 @@ SCRIPTS = {
     'todoist':          ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_todoist.sh'],
     'food':             ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_food.sh'],
     'llm':              [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm.py', '--write'],
+    'weekly-recap':     [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_weekly_recap.py'],
     'render-publish':   ['bash', f'{PROJECT_ROOT}/scripts/manual/archive_and_publish.sh'],
 }
 
@@ -61,6 +62,7 @@ TIMEOUTS = {
     'todoist':          60,
     'food':             60,
     'llm':              180,  # LLM is slow (Pitfall §7: 45s timeout in hermes -z)
+    'weekly-recap':     240,  # 4× Supabase queries + LLM + Telegram send
     'render-publish':   600,  # archive_and_publish.sh full pipeline
 }
 
@@ -161,33 +163,93 @@ def run_one(job: dict) -> None:
     print(f'  TERM={env.get("TERM")}', flush=True)
     print(f'  PWD={env.get("PWD")}', flush=True)
 
+    # Run in its own process group so we can SIGKILL the whole tree on timeout.
+    # Without this, gws-cli (spawned by python -> asyncio.create_subprocess_exec)
+    # survives as an orphan and competes with the next click for the same
+    # network/cred handles. Setsid also detaches from the worker's controlling tty.
+    # We use Popen() + communicate(timeout=...) explicitly so `proc` is ALWAYS bound
+    # in the TimeoutExpired handler — earlier we used subprocess.run(timeout=...) and
+    # the handler raised UnboundLocalError on `proc`, which left the hang un-killed
+    # and the job stuck in 'running' forever (2026-07-09).
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             cwd=PROJECT_ROOT,
             env=env,
             stdin=subprocess.DEVNULL,
-            capture_output=True,
-            timeout=timeout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,  # POSIX setsid: child gets its own pgid
         )
-        rc = proc.returncode
-        stderr = proc.stderr.decode('utf-8', errors='replace')[:2000]
-        stdout_tail = proc.stdout.decode('utf-8', errors='replace')[-500:]
-
-        if rc == 0:
-            update_status(job_id, 'done')
-            print(f'[run_one] job={job_id} DONE', flush=True)
-        else:
-            err = f'rc={rc} stderr={stderr[:200]}'
-            update_status(job_id, 'failed', err)
-            print(f'[run_one] job={job_id} FAILED {err[:200]}', flush=True)
-    except subprocess.TimeoutExpired:
-        update_status(job_id, 'failed', f'timeout after {timeout}s')
-        print(f'[run_one] job={job_id} TIMEOUT after {timeout}s', flush=True)
     except Exception as e:
-        tb = traceback.format_exc()[:500]
-        update_status(job_id, 'failed', f'{type(e).__name__}: {e}\n{tb}')
-        print(f'[run_one] job={job_id} ERROR {e}', flush=True)
+        update_status(job_id, 'failed', f'popen failed: {type(e).__name__}: {e}')
+        print(f'[run_one] job={job_id} POPEN FAIL {e}', flush=True)
+        return
+
+    timed_out = False
+    error_msg: str | None = None
+    try:
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+            rc = proc.returncode
+            stderr_text = stderr.decode('utf-8', errors='replace')[:2000]
+            stdout_tail = stdout.decode('utf-8', errors='replace')[-500:]
+
+            if rc == 0:
+                update_status(job_id, 'done')
+                print(f'[run_one] job={job_id} DONE', flush=True)
+            else:
+                err = f'rc={rc} stderr={stderr_text[:200]}'
+                update_status(job_id, 'failed', err)
+                print(f'[run_one] job={job_id} FAILED {err[:200]}', flush=True)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            # `proc` is bound here because we assigned it before communicate().
+            # SIGKILL the entire process group (bash -> python -> gws-cli -> anything else
+            # spawned by `cmd`) so no grandchildren survive as orphans. proc.pid is the
+            # bash leader; its pgid == pid because of start_new_session=True above.
+            pgid = os.getpgid(proc.pid)
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError) as kerr:
+                # Group already gone, or we don't own it — fall back to proc.kill().
+                print(f'[run_one] job={job_id} killpg fallback: {kerr}', flush=True)
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+            # Drain pipes so the killed child actually exits and is reaped.
+            try:
+                proc.communicate(timeout=10)
+            except Exception:
+                pass
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                pass
+            update_status(job_id, 'failed', f'timeout after {timeout}s (group killed)')
+            print(f'[run_one] job={job_id} TIMEOUT after {timeout}s (group killed)', flush=True)
+        except Exception as e:
+            error_msg = f'{type(e).__name__}: {e}'
+            tb = traceback.format_exc()[:500]
+            update_status(job_id, 'failed', f'{error_msg}\n{tb}')
+            print(f'[run_one] job={job_id} ERROR {e}', flush=True)
+    finally:
+        # Safety net: if anything went sideways and `proc` is still alive (e.g.,
+        # Popen succeeded but communicate raised before we could call killpg),
+        # make sure the entire group is dead so the worker never leaks a hanging
+        # grandchild into the next job.
+        try:
+            if proc.poll() is None:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    pass
+                if not timed_out:
+                    print(f'[run_one] job={job_id} finally-kill (proc still alive)', flush=True)
+        except Exception:
+            pass
 
 
 def reaper() -> None:

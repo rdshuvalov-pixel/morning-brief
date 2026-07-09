@@ -19,6 +19,7 @@
     { id: 'todoist',          label: 'Задачи (Todoist)',   script: 'todoist' },
     { id: 'food',             label: 'Еда',                script: 'food' },
     { id: 'llm',              label: 'LLM-нарратив',       script: 'llm' },
+    { id: 'weekly-recap',     label: 'Weekly Recap',       script: 'weekly-recap' },
     { id: 'render-publish',   label: 'Render + publish',   script: 'render-publish' },
   ];
 
