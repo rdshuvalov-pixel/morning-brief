@@ -185,12 +185,16 @@ def _format_user_prompt(facts: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def compose(facts: dict[str, Any], *, timeout: int = 45) -> dict[str, str] | None:
+def compose(facts: dict[str, Any], *, timeout: int = 120) -> dict[str, str] | None:
     """Generate narrative via Hermes gateway. Returns None on any failure.
 
     Args:
         facts: dict of metrics (see _format_user_prompt for keys).
-        timeout: subprocess timeout in seconds.
+        timeout: subprocess timeout in seconds (default 120; was 45 — bumped
+            2026-07-10 because M3/MiniMax provider is slow today, returning
+            >45s on production prompts and causing rc=2 failures on /pult
+            LLM-нарратив button. See TODO below to revisit after provider
+            normalizes. 4× observed in journalctl job=73..76.)
 
     Returns:
         {headline, lead, footer_title, footer_text} or None.
