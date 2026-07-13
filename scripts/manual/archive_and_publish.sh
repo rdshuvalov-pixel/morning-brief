@@ -48,6 +48,15 @@ cp -f web/archive/$DATE.html web/brief_today.html
 cp -f web/archive/$DATE.html web/index.html
 echo "[publish] step 2: copied to web/brief_today.html + web/index.html" | tee -a "$LOG"
 
+# Step 2.5: rebuild archive/manifest.json from disk.
+# archive_and_publish.sh is the path /pult and manual rerenders use; without
+# this step the "Все брифы" list rendered on every page silently falls behind
+# the archive (this was the bug for 2026-07-11/12).
+if ! ./.venv/bin/python scripts/sync_archive_manifest.py 2>&1 | tee -a "$LOG"; then
+    echo "[publish] FAIL at sync_archive_manifest.py" | tee -a "$LOG"
+    exit 1
+fi
+
 # Step 3: git add + commit + push
 if [ "$SKIP_PUSH" = "1" ]; then
   echo "[publish] step 3: SKIPPED (--skip-push)" | tee -a "$LOG"
@@ -55,7 +64,7 @@ if [ "$SKIP_PUSH" = "1" ]; then
   exit 0
 fi
 
-git add web/archive/$DATE.html web/brief_today.html web/index.html
+git add web/archive/$DATE.html web/archive/manifest.json web/brief_today.html web/index.html
 if git diff --cached --quiet; then
   echo "[publish] nothing to commit" | tee -a "$LOG"
   exit 0

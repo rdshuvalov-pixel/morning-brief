@@ -28,9 +28,17 @@ LOG="$LOG_DIR/archive-$DATE_UTC.log"
 
 echo "[archive] start $(date -u +%FT%TZ)" >> "$LOG"
 
-# Step 1+2: snapshot to archive/ + write manifest.json
+# Step 1: snapshot to archive/
 if ! ./.venv/bin/python archive_brief.py >> "$LOG" 2>&1; then
     echo "[archive] FAIL at archive_brief.py $(date -u +%FT%TZ)" >> "$LOG"
+    exit 1
+fi
+
+# Step 2: rebuild manifest.json from disk (single source of truth for the
+# "Все брифы" list). archive_brief.py also writes a manifest, but this
+# helper is shared with the manual publish path so the two stay in sync.
+if ! ./.venv/bin/python scripts/sync_archive_manifest.py >> "$LOG" 2>&1; then
+    echo "[archive] FAIL at sync_archive_manifest.py $(date -u +%FT%TZ)" >> "$LOG"
     exit 1
 fi
 
