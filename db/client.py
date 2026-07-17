@@ -256,11 +256,15 @@ def get_tasks(date_val: date) -> list[dict[str, Any]]:
     return data or []
 
 
-# ── Per-block narrative helpers (brief_block_narratives table) ─────────────
+# ── Per-block narrative helpers (5 columns in briefs, миграция 008) ─────────
+# Per-block narratives — 5 TEXT-колонок в briefs (narrative_weather/tasks/movement/
+# calendar/battery) + 1 JSONB narrative_blocks_meta для отладки.
+# Атомарный UPSERT на 1 блок: briefs.UPDATE WHERE id=X (не отдельная таблица).
+# History: meta-колонка фиксирует source/chars на момент записи.
 from typing import cast
 
 
-def upsert_block_narrative(
+def upsert_narrative_block(
     brief_id: str,
     block_name: str,
     text: str,
@@ -270,59 +274,121 @@ def upsert_block_narrative(
     chars: int | None = None,
     error: str | None = None,
 ) -> dict[str, Any]:
-    """UPSERT one row into brief_block_narratives keyed on (brief_id, block_name).
+    """UPSERT one block narrative into briefs.narrative_{block_name}.
 
-    Per-block narratives — отдельная таблица (миграция 007), не JSONB в briefs.
-    Каждый перезапуск блока перезаписывает существующую строку (UNIQUE constraint).
-    History-friendly: created_at фиксируется при первой записи, updated_at при изменении.
+    Args:
+        brief_id: briefs.id (UUID str)
+        block_name: one of NARRATIVE_BLOCKS = ('weather','tasks','movement','calendar','battery')
+        text: 2-4 предложения от LLM (≤500 chars по MAX_BLOCK_CHARS)
+        source: 'llm' | 'fallback' | 'empty'
+
+    Updates two columns atomically:
+      - briefs.narrative_{block_name} = text
+      - briefs.narrative_blocks_meta.{block_name} = {source, model, chars, ts, error}
+
+    Returns: dict of updated row (or {} on failure).
     """
     from datetime import datetime, timezone
+    if block_name not in ("weather", "tasks", "movement", "calendar", "battery"):
+        raise ValueError(f"invalid block_name: {block_name}")
     sb = get_client()
-    row: dict[str, Any] = {
-        "brief_id": brief_id,
-        "block_name": block_name,
-        "text": text,
+    text_col = f"narrative_{block_name}"
+    ts = datetime.now(timezone.utc).isoformat()
+    meta_obj: dict[str, Any] = {
         "source": source,
         "model": model,
         "chars": chars if chars is not None else len(text),
+        "ts": ts,
         "error": error,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    result = sb.table("brief_block_narratives").upsert(
-        row,
-        on_conflict="brief_id,block_name",
-    ).execute()
-    data = result.data if hasattr(result, "data") else result
-    if isinstance(data, list) and data:
-        first = data[0]
-        return cast(dict[str, Any], first) if isinstance(first, dict) else {}
-    return {}
+    # Two writes: (1) set text column, (2) merge meta_obj into narrative_blocks_meta->{block_name}.
+    # Supabase/PostgREST не поддерживает jsonb_set в UPDATE через anon-ключ без RPC,
+    # поэтому делаем read-modify-write для meta.
+    # ВНИМАНИЕ: колонки updated_at в briefs НЕТ (в отличие от старой таблицы).
+    # Трогать её мы не будем.
+    update_payload: dict[str, Any] = {text_col: text}
+    sb.table("briefs").update(update_payload).eq("id", brief_id).execute()
+
+    # Read existing meta, merge block_name entry, write back
+    try:
+        cur = sb.table("briefs").select("narrative_blocks_meta").eq("id", brief_id).maybe_single().execute()
+        cur_data: Any = cur.data  # type: ignore[attr-defined]
+        if not isinstance(cur_data, dict):
+            cur_data = {}
+        cur_meta_obj = cur_data.get("narrative_blocks_meta") if isinstance(cur_data, dict) else None
+        cur_meta: dict[str, Any] = cast(dict[str, Any], cur_meta_obj) if isinstance(cur_meta_obj, dict) else {}
+        cur_meta[block_name] = meta_obj
+        sb.table("briefs").update({"narrative_blocks_meta": cur_meta}).eq("id", brief_id).execute()
+    except Exception as e:
+        # Meta-update не критичен (text уже записан), не валим весь upsert
+        import logging
+        logging.getLogger(__name__).warning("narrative_blocks_meta update failed for %s/%s: %s",
+                                            brief_id, block_name, str(e)[:200])
+
+    return {"brief_id": brief_id, "block_name": block_name, "text": text, **meta_obj}
 
 
 def get_block_narratives(date_val: date) -> dict[str, dict[str, Any]]:
     """Read all per-block narratives for the active brief_id of date_val.
 
     Returns:
-        {block_name: {text, source, model, chars, error, updated_at}}
+        {block_name: {text, source, model, chars, ts, error}}
+        — синтетический dict из narrative_* колонок + narrative_blocks_meta.
     """
     bid = get_active_brief_id(date_val)
     if not bid:
         return {}
     sb = get_client()
-    result = sb.table("brief_block_narratives").select("*").eq("brief_id", bid).execute()
-    rows = result.data if hasattr(result, "data") else result
+    cols = ("narrative_weather", "narrative_tasks", "narrative_movement",
+            "narrative_calendar", "narrative_battery", "narrative_blocks_meta")
+    try:
+        result = sb.table("briefs").select(",".join(cols)).eq("id", bid).maybe_single().execute()
+    except Exception as e:
+        msg = str(e)
+        if "PGRST204" in msg or "42703" in msg or "does not exist" in msg:
+            return {}
+        raise
+    row_obj: Any = result.data  # type: ignore[attr-defined]
+    if not isinstance(row_obj, dict):
+        row_obj = {}
+    row: dict[str, Any] = cast(dict[str, Any], row_obj)
+    meta_obj = row.get("narrative_blocks_meta")
+    meta: dict[str, Any] = cast(dict[str, Any], meta_obj) if isinstance(meta_obj, dict) else {}
     out: dict[str, dict[str, Any]] = {}
-    for r in rows or []:
-        if isinstance(r, dict):
-            name = r.get("block_name")
-            if isinstance(name, str):
-                out[name] = cast(dict[str, Any], r)
+    for blk in ("weather", "tasks", "movement", "calendar", "battery"):
+        text = row.get(f"narrative_{blk}")
+        if not isinstance(text, str) or not text:
+            continue
+        block_meta_obj = meta.get(blk)
+        block_meta: dict[str, Any] = cast(dict[str, Any], block_meta_obj) if isinstance(block_meta_obj, dict) else {}
+        out[blk] = {
+            "text": text,
+            "source": block_meta.get("source", "migrated-from-007" if not meta else "unknown"),
+            "model": block_meta.get("model"),
+            "chars": block_meta.get("chars") or len(text),
+            "ts": block_meta.get("ts"),
+            "error": block_meta.get("error"),
+        }
     return out
 
 
 def get_block_text(date_val: date, block_name: str) -> str | None:
     """Read just the text for one block. Convenience for render."""
-    rows = get_block_narratives(date_val)
-    block = rows.get(block_name) or {}
-    text = block.get("text") if isinstance(block, dict) else None
-    return text if isinstance(text, str) and text else None
+    if block_name not in ("weather", "tasks", "movement", "calendar", "battery"):
+        return None
+    bid = get_active_brief_id(date_val)
+    if not bid:
+        return None
+    sb = get_client()
+    try:
+        r = sb.table("briefs").select(f"narrative_{block_name}").eq("id", bid).maybe_single().execute()
+    except Exception as e:
+        msg = str(e)
+        if "PGRST204" in msg or "42703" in msg:
+            return None
+        raise
+    if not r.data or not isinstance(r.data, dict):
+        return None
+    text_obj: Any = r.data.get(f"narrative_{block_name}")  # type: ignore[attr-defined]
+    text = cast(str, text_obj) if isinstance(text_obj, str) else ""
+    return text if text else None

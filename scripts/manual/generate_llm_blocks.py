@@ -49,7 +49,7 @@ from playful.narrative_blocks import (  # noqa: E402
     compose_block,
     compose_all_blocks,
 )
-from db.client import get_client, get_brief, upsert_block_narrative  # noqa: E402
+from db.client import get_client, get_brief, upsert_narrative_block  # noqa: E402
 
 # Strictly line-buffered stderr so worker.py captures WARNING/ERROR on exit.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -236,7 +236,7 @@ def main() -> int:
             continue
         meta = out_meta.get(blk, {})
         try:
-            upsert_block_narrative(
+            upsert_narrative_block(
                 brief_id=brief_id,
                 block_name=blk,
                 text=text,
