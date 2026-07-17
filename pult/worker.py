@@ -46,29 +46,15 @@ SCRIPTS = {
     'calendar':         ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_calendar.sh'],
     'todoist':          ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_todoist.sh'],
     'food':             ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_food.sh'],
-    'llm':              [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm.py'],
-    # --date is appended at run-time in run_one() (since 2026-07-09 — uses
-    # payload.date which the Vercel Function populates with today-utc).
-    # --write is intentionally OMITTED: worker runs in dry-run mode so we
-    # generate the payload, expose it on stdout, but do NOT auto-publish.
-    # Manual backfills use `generate_llm.py --date YYYY-MM-DD --write` directly
-    # (the operator gates the publish step). Without --date, argparse fails
-    # with "the following arguments are required: --date" → rc=2, which is
-    # exactly the symptom we saw on 2026-07-17 jobs 151..181 in journalctl.
-    # Earlier versions of the SCRIPTS dict had `--write` here — that was
-    # the upstream bug; ensure future edits keep both flags out.
+    'llm':              [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
+    # --date and --all are appended at run-time in run_one() (per-block pipeline,
+    # миграция 008, 2026-07-17): 5 sequential LLM calls → briefs.narrative_*
+    # columns. Unlike the legacy generate_llm.py which only wrote JSON to
+    # briefs.narrative, this one writes per-block TEXT columns directly.
+    # --write IS passed for 'llm' (operator clicks → expects write), unlike
+    # the legacy rule where worker ran dry-run.
     'weekly-recap':     [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_weekly_recap.py'],
     'render-publish':   ['bash', f'{PROJECT_ROOT}/scripts/manual/archive_and_publish.sh'],
-    # Per-block LLM narratives (миграция 007, 2026-07-17): одна кнопка = один блок.
-    # Тонкая развязка: можно регенерировать погоду отдельно, не гоняя 5 блоков.
-    # --write НЕ передаём (mirror 'llm' rule above — worker dry-run).
-    # Operator gates the publish with `--write` explicitly.
-    'llm-block-weather':   [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
-    'llm-block-tasks':     [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
-    'llm-block-movement':  [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
-    'llm-block-calendar':  [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
-    'llm-block-battery':   [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
-    'llm-blocks-all':      [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
 }
 
 # Per-script timeout in seconds.
@@ -81,17 +67,12 @@ TIMEOUTS = {
     'calendar':         120,  # was 60; bumped because Google API slow on cold start
     'todoist':          60,
     'food':             60,
-    'llm':              300,  # LLM compose (120s timeout) + 5 opinions (60s each, parallel) → ~180s; headroom=300
+    # Per-block LLM pipeline (миграция 008): 5 sequential hermes calls × ~30s
+    # + headroom. Worst observed: ~150s for full run (mirrors what we saw in
+    # journalctl 12:50-12:52 for the first end-to-end run).
+    'llm':              300,
     'weekly-recap':     240,  # 4× Supabase queries + LLM + Telegram send
     'render-publish':   600,  # archive_and_publish.sh full pipeline
-    # Per-block LLM narratives (миграция 007). Каждый блок — отдельный hermes -z.
-    # Single: 90s (1 hermes call + headroom). All: 300s (5 sequential calls × ~30s + headroom).
-    'llm-block-weather':   90,
-    'llm-block-tasks':     90,
-    'llm-block-movement':  90,
-    'llm-block-calendar':  90,
-    'llm-block-battery':   90,
-    'llm-blocks-all':     300,
 }
 
 # Reaper threshold: running jobs older than this are marked orphaned
@@ -194,20 +175,11 @@ def run_one(job: dict) -> None:
     cmd = SCRIPTS[script]
     timeout = TIMEOUTS[script]
 
-    # LLM script also needs --date (already added 'llm' as full venv python path,
-    # but date arg comes after the script path)
+    # Per-block LLM pipeline (миграция 008, 2026-07-17): --date + --all + --write.
+    # Кнопка 'llm' в /pult запускает именно это: 5 sequential LLM calls → 5
+    # колонок briefs.narrative_*, сразу с записью (не dry-run).
     if script == 'llm':
-        cmd = list(cmd) + ['--date', date]
-
-    # Per-block LLM narratives: --date + either --block <name> or --all.
-    # ВАЖНО: --write НЕ передаём — worker dry-run по аналогии с 'llm' (см. SCRIPTS comment).
-    if script.startswith('llm-block-') or script == 'llm-blocks-all':
-        if script == 'llm-blocks-all':
-            cmd = list(cmd) + ['--date', date, '--all']
-        else:
-            # 'llm-block-weather' → 'weather'
-            block_name = script[len('llm-block-'):]
-            cmd = list(cmd) + ['--date', date, '--block', block_name]
+        cmd = list(cmd) + ['--date', date, '--all', '--write']
 
     # Build subprocess env. Preserve worker's env (loads .env via systemd EnvironmentFile),
     # but ensure PATH includes Hermes-agent venv bin dir so scripts can find gws-cli
