@@ -463,6 +463,13 @@ class PlayfulContext:
     opinion_calendar: str | None
     opinion_battery: str | None
 
+    # 9 per-block narratives (LLM 2-4 предложения, from brief_block_narratives table)
+    block_narrative_weather: str | None
+    block_narrative_tasks: str | None
+    block_narrative_movement: str | None
+    block_narrative_calendar: str | None
+    block_narrative_battery: str | None
+
 
 def build_playful_context(
     *,
@@ -485,6 +492,11 @@ def build_playful_context(
     opinion_movement: str | None = None,
     opinion_calendar: str | None = None,
     opinion_battery: str | None = None,
+    block_narrative_weather: str | None = None,
+    block_narrative_tasks: str | None = None,
+    block_narrative_movement: str | None = None,
+    block_narrative_calendar: str | None = None,
+    block_narrative_battery: str | None = None,
     focus_window: str = "Focus 08:30–11:30",
     hrv_baseline: int | None = None,
     hrv_7d: list[int] | None = None,
@@ -802,6 +814,11 @@ def build_playful_context(
         opinion_movement=opinion_movement,
         opinion_calendar=opinion_calendar,
         opinion_battery=opinion_battery,
+        block_narrative_weather=block_narrative_weather,
+        block_narrative_tasks=block_narrative_tasks,
+        block_narrative_movement=block_narrative_movement,
+        block_narrative_calendar=block_narrative_calendar,
+        block_narrative_battery=block_narrative_battery,
     )
 
 
@@ -1185,6 +1202,42 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
     else:
         logger.info("narrative: briefs.narrative empty, using fallback defaults")
 
+    # ── Per-block narratives (from brief_block_narratives table, миграция 007) ──
+    # Read 2-4 sentence text per block. Missing/empty → None (jinja skips).
+    # IMPORTANT: до применения миграции 007 таблица не существует — PGRST205.
+    # fetch_live_context MUST быть устойчив к этому (иначе dry-run генератора
+    # и старый render_playful.py падают на ровном месте). Ловим и идём дальше.
+    bn_weather = bn_tasks = bn_movement = bn_calendar = bn_battery = None
+    bn_count = 0
+    try:
+        from db.client import get_block_narratives
+        _blocks = get_block_narratives(brief_date)
+        for name, row in _blocks.items():
+            text = row.get("text") if isinstance(row, dict) else None
+            if not text or not isinstance(text, str):
+                continue
+            if name == "weather":
+                bn_weather = text; bn_count += 1
+            elif name == "tasks":
+                bn_tasks = text; bn_count += 1
+            elif name == "movement":
+                bn_movement = text; bn_count += 1
+            elif name == "calendar":
+                bn_calendar = text; bn_count += 1
+            elif name == "battery":
+                bn_battery = text; bn_count += 1
+    except Exception as e:
+        msg = str(e)
+        if "PGRST205" in msg or "schema cache" in msg or "does not exist" in msg:
+            logger.info("block-narrative: table brief_block_narratives not yet in schema "
+                        "(migration 007 not applied?), skipping")
+        else:
+            logger.warning("block-narrative: get_block_narratives failed: %s", msg[:200])
+    if bn_count:
+        logger.info("block-narrative: loaded %d/5 from brief_block_narratives", bn_count)
+    elif bn_count == 0:
+        logger.debug("block-narrative: no rows in brief_block_narratives for this date")
+
     return {
         "brief_date": brief_date,
         "garmin": _map_garmin_row(garmin_row),
@@ -1212,6 +1265,12 @@ def fetch_live_context(brief_date: date) -> dict[str, Any]:
         "opinion_movement": op_movement,
         "opinion_calendar": op_calendar,
         "opinion_battery": op_battery,
+        # Per-block narratives from LLM (2-4 предложения, brief_block_narratives table)
+        "block_narrative_weather": bn_weather,
+        "block_narrative_tasks": bn_tasks,
+        "block_narrative_movement": bn_movement,
+        "block_narrative_calendar": bn_calendar,
+        "block_narrative_battery": bn_battery,
         "focus_window": "Focus 08:30–11:30",
     }
 

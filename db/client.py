@@ -252,5 +252,77 @@ def get_tasks(date_val: date) -> list[dict[str, Any]]:
         return []
     sb = get_client()
     result = sb.table("tasks").select("*").eq("brief_id", bid).execute()
-    data = result.data if hasattr(result, 'data') else result
+    data = result.data if hasattr(result, "data") else result
     return data or []
+
+
+# ── Per-block narrative helpers (brief_block_narratives table) ─────────────
+from typing import cast
+
+
+def upsert_block_narrative(
+    brief_id: str,
+    block_name: str,
+    text: str,
+    source: str,
+    *,
+    model: str | None = None,
+    chars: int | None = None,
+    error: str | None = None,
+) -> dict[str, Any]:
+    """UPSERT one row into brief_block_narratives keyed on (brief_id, block_name).
+
+    Per-block narratives — отдельная таблица (миграция 007), не JSONB в briefs.
+    Каждый перезапуск блока перезаписывает существующую строку (UNIQUE constraint).
+    History-friendly: created_at фиксируется при первой записи, updated_at при изменении.
+    """
+    from datetime import datetime, timezone
+    sb = get_client()
+    row: dict[str, Any] = {
+        "brief_id": brief_id,
+        "block_name": block_name,
+        "text": text,
+        "source": source,
+        "model": model,
+        "chars": chars if chars is not None else len(text),
+        "error": error,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result = sb.table("brief_block_narratives").upsert(
+        row,
+        on_conflict="brief_id,block_name",
+    ).execute()
+    data = result.data if hasattr(result, "data") else result
+    if isinstance(data, list) and data:
+        first = data[0]
+        return cast(dict[str, Any], first) if isinstance(first, dict) else {}
+    return {}
+
+
+def get_block_narratives(date_val: date) -> dict[str, dict[str, Any]]:
+    """Read all per-block narratives for the active brief_id of date_val.
+
+    Returns:
+        {block_name: {text, source, model, chars, error, updated_at}}
+    """
+    bid = get_active_brief_id(date_val)
+    if not bid:
+        return {}
+    sb = get_client()
+    result = sb.table("brief_block_narratives").select("*").eq("brief_id", bid).execute()
+    rows = result.data if hasattr(result, "data") else result
+    out: dict[str, dict[str, Any]] = {}
+    for r in rows or []:
+        if isinstance(r, dict):
+            name = r.get("block_name")
+            if isinstance(name, str):
+                out[name] = cast(dict[str, Any], r)
+    return out
+
+
+def get_block_text(date_val: date, block_name: str) -> str | None:
+    """Read just the text for one block. Convenience for render."""
+    rows = get_block_narratives(date_val)
+    block = rows.get(block_name) or {}
+    text = block.get("text") if isinstance(block, dict) else None
+    return text if isinstance(text, str) and text else None

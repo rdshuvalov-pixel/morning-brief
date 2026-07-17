@@ -36,7 +36,16 @@ from playful.render_playful import fetch_live_context  # noqa: E402
 from playful.narrative import compose, compose_all_opinions  # noqa: E402
 from db.client import get_client, get_brief  # noqa: E402
 
+# Make stderr strictly line-buffered so that when pult/worker.py runs this
+# script via subprocess.Popen(stderr=PIPE), WARNING/ERROR log lines reach
+# the worker on exit instead of being trapped in Python's 4KB block buffer.
+# (PYTHONUNBUFFERED=1 set by the worker flushes stdout but not Python's
+# logging — these are independent streams.)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+try:
+    sys.stderr.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+except Exception:
+    pass
 log = logging.getLogger("generate_llm")
 
 
@@ -302,8 +311,8 @@ def main() -> int:
     ctx = fetch_live_context(target)
 
     facts = _format_facts_for_narrative(ctx)
-    log.info("[%s] calling narrative.compose (hermes -z, 45s timeout)", target)
-    narrative = compose(facts, timeout=45)
+    log.info("[%s] calling narrative.compose (hermes -z, 120s timeout)", target)
+    narrative = compose(facts, timeout=120)
     if not narrative:
         log.warning("[%s] narrative returned None — DB will not be written", target)
         return 2

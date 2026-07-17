@@ -46,9 +46,29 @@ SCRIPTS = {
     'calendar':         ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_calendar.sh'],
     'todoist':          ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_todoist.sh'],
     'food':             ['bash', f'{PROJECT_ROOT}/scripts/manual/fetch_food.sh'],
-    'llm':              [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm.py', '--write'],
+    'llm':              [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm.py'],
+    # --date is appended at run-time in run_one() (since 2026-07-09 — uses
+    # payload.date which the Vercel Function populates with today-utc).
+    # --write is intentionally OMITTED: worker runs in dry-run mode so we
+    # generate the payload, expose it on stdout, but do NOT auto-publish.
+    # Manual backfills use `generate_llm.py --date YYYY-MM-DD --write` directly
+    # (the operator gates the publish step). Without --date, argparse fails
+    # with "the following arguments are required: --date" → rc=2, which is
+    # exactly the symptom we saw on 2026-07-17 jobs 151..181 in journalctl.
+    # Earlier versions of the SCRIPTS dict had `--write` here — that was
+    # the upstream bug; ensure future edits keep both flags out.
     'weekly-recap':     [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_weekly_recap.py'],
     'render-publish':   ['bash', f'{PROJECT_ROOT}/scripts/manual/archive_and_publish.sh'],
+    # Per-block LLM narratives (миграция 007, 2026-07-17): одна кнопка = один блок.
+    # Тонкая развязка: можно регенерировать погоду отдельно, не гоняя 5 блоков.
+    # --write НЕ передаём (mirror 'llm' rule above — worker dry-run).
+    # Operator gates the publish with `--write` explicitly.
+    'llm-block-weather':   [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
+    'llm-block-tasks':     [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
+    'llm-block-movement':  [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
+    'llm-block-calendar':  [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
+    'llm-block-battery':   [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
+    'llm-blocks-all':      [f'{PROJECT_ROOT}/.venv/bin/python', f'{PROJECT_ROOT}/scripts/manual/generate_llm_blocks.py'],
 }
 
 # Per-script timeout in seconds.
@@ -61,9 +81,17 @@ TIMEOUTS = {
     'calendar':         120,  # was 60; bumped because Google API slow on cold start
     'todoist':          60,
     'food':             60,
-    'llm':              180,  # LLM is slow (Pitfall §7: 45s timeout in hermes -z)
+    'llm':              300,  # LLM compose (120s timeout) + 5 opinions (60s each, parallel) → ~180s; headroom=300
     'weekly-recap':     240,  # 4× Supabase queries + LLM + Telegram send
     'render-publish':   600,  # archive_and_publish.sh full pipeline
+    # Per-block LLM narratives (миграция 007). Каждый блок — отдельный hermes -z.
+    # Single: 90s (1 hermes call + headroom). All: 300s (5 sequential calls × ~30s + headroom).
+    'llm-block-weather':   90,
+    'llm-block-tasks':     90,
+    'llm-block-movement':  90,
+    'llm-block-calendar':  90,
+    'llm-block-battery':   90,
+    'llm-blocks-all':     300,
 }
 
 # Reaper threshold: running jobs older than this are marked orphaned
@@ -81,15 +109,26 @@ def claim() -> dict | None:
     The public.claim_next_job() RPC was rewritten 2026-07-08 to return jsonb
     (a single dict) instead of morning_brief_v2.jobs record. This sidesteps
     PostgREST's type-cache issue (Pitfall §3 + new §38 in morning-brief-v2 skill).
+
+    On 2026-07-17 the RPC was observed returning a *list of dicts* on some
+    calls (probably when SETOF jsonb lands as a single-row array). Handle
+    all three shapes: dict, list[dict], str — pick the first dict or fall
+    through to None.
     """
     try:
         r = sb.rpc('claim_next_job').execute()
         if r.data is None or r.data == '':
             return None
-        # r.data is a jsonb string OR a dict depending on supabase-py version
+        # r.data may be: str (jsonb-as-text), dict, list[dict]
         if isinstance(r.data, str):
-            return json.loads(r.data)
-        return r.data
+            parsed = json.loads(r.data)
+        else:
+            parsed = r.data
+        if isinstance(parsed, list):
+            return parsed[0] if parsed else None
+        if isinstance(parsed, dict):
+            return parsed
+        return None
     except Exception as e:
         print(f'[claim] error: {e}', flush=True)
         return None
@@ -112,10 +151,29 @@ def update_status(job_id: int, status: str, error: str | None = None) -> None:
 
 
 def run_one(job: dict) -> None:
-    """Process one job: run script, capture result, update status."""
+    """Process one job: run script, capture result, update status.
+
+    job shape (verified 2026-07-17 against claim_next_job RPC):
+      { "id": int, "script": str, "status": str,
+        "payload": [ {date: ...}, "extra-json-str" ],
+        "triggered_at": "...",
+        ... }
+    The payload field is a JSONB array, not a dict. Earlier code assumed a
+    dict and crashed on this morning's session with
+        AttributeError: 'list' object has no attribute 'get'
+    (rc=2 cascades because the loop dies — job rows never get update_status,
+    leaving them in 'running' until the 15-min reaper marks them orphaned).
+    """
     job_id = job['id']
     script = job['script']
-    date = (job.get('payload') or {}).get('date', 'unknown')
+    payload = job.get('payload') or []
+    # payload may be [] OR [args1_dict, args2_str] OR [args1_dict] depending
+    # on insert_job args. First element is the merged payload JSON, second
+    # (if present) is the p_payload_extra string. Pull `date` from the first
+    # element if it's a dict, else default to 'unknown'.
+    date = 'unknown'
+    if isinstance(payload, list) and payload and isinstance(payload[0], dict):
+        date = payload[0].get('date') or 'unknown'
     print(f'[run_one] job={job_id} script={script} date={date}', flush=True)
 
     if script not in SCRIPTS:
@@ -141,6 +199,16 @@ def run_one(job: dict) -> None:
     if script == 'llm':
         cmd = list(cmd) + ['--date', date]
 
+    # Per-block LLM narratives: --date + either --block <name> or --all.
+    # ВАЖНО: --write НЕ передаём — worker dry-run по аналогии с 'llm' (см. SCRIPTS comment).
+    if script.startswith('llm-block-') or script == 'llm-blocks-all':
+        if script == 'llm-blocks-all':
+            cmd = list(cmd) + ['--date', date, '--all']
+        else:
+            # 'llm-block-weather' → 'weather'
+            block_name = script[len('llm-block-'):]
+            cmd = list(cmd) + ['--date', date, '--block', block_name]
+
     # Build subprocess env. Preserve worker's env (loads .env via systemd EnvironmentFile),
     # but ensure PATH includes Hermes-agent venv bin dir so scripts can find gws-cli
     # (used by CalendarProvider). This belt-and-suspenders against future changes to
@@ -154,13 +222,15 @@ def run_one(job: dict) -> None:
     # gws-cli blocks on OAuth URL display. Set TERM=dumb (non-interactive).
     env['TERM'] = 'dumb'
 
-    # Special case: weekly-recap script invokes `hermes -z` which keys off
-    # $HOME for picking the LLM provider config. When HOME=/root (interactive
-    # shell) hermes uses the correct MiniMax provider (M3). When
-    # HOME=/root/.hermes/profiles/developer/home (this worker's systemd unit)
-    # hermes appears to hang on -z calls. Force HOME=/root only for this
-    # script — the unit HOME stays for gws-cli OAuth in other scripts.
-    if script == 'weekly-recap':
+    # Special case: weekly-recap AND llm scripts invoke `hermes -z` which
+    # keys off $HOME for picking the LLM provider config. When HOME=/root
+    # (interactive shell) hermes finds /root/.hermes/.env with MINIMAX_API_KEY.
+    # When HOME=/root/.hermes/profiles/developer/home (this worker's systemd
+    # unit) that path's .hermes/.env doesn't exist and hermes errors
+    # "No inference provider configured" (2026-07-10). Force HOME=/root for
+    # any script that runs hermes -z — the unit HOME stays for gws-cli OAuth
+    # in the provider scripts (fetch_calendar, fetch_todoist).
+    if script in ('llm', 'weekly-recap'):
         env['HOME'] = '/root'
 
     # DIAG (2026-07-09): print env that subprocess gets — debugging calendar hang
@@ -208,9 +278,18 @@ def run_one(job: dict) -> None:
                 update_status(job_id, 'done')
                 print(f'[run_one] job={job_id} DONE', flush=True)
             else:
-                err = f'rc={rc} stderr={stderr_text[:200]}'
+                # DIAG 2026-07-17 — show ALL stderr not just last 200 chars
+                # so we stop guessing. Also print stderr line count and
+                # last INFO/ERROR/WARNING level lines.
+                err_lines = stderr_text.splitlines()
+                err = (
+                    f'rc={rc} stderr_lines={len(err_lines)} '
+                    f'last300={stderr_text[-300:]} '
+                    f'last_errlines='
+                    f'{[l for l in err_lines[-12:] if "ERROR" in l or "Traceback" in l or "return 2" in l or "None" in l]}'
+                )
                 update_status(job_id, 'failed', err)
-                print(f'[run_one] job={job_id} FAILED {err[:200]}', flush=True)
+                print(f'[run_one] job={job_id} FAILED rc={rc} stderr_tail={stderr_text[-300:]}', flush=True)
         except subprocess.TimeoutExpired:
             timed_out = True
             # `proc` is bound here because we assigned it before communicate().

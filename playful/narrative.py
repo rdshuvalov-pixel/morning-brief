@@ -24,6 +24,25 @@ import shutil
 import subprocess
 from typing import Any
 
+# Pin hermes binary path explicitly. The mbrief-pult-worker runs with a
+# sanitized PATH that on this host happens to include the venv bin dir, but
+# future systemd-environment changes can drop it — and shutil.which("hermes")
+# silently returning None produces rc=2 with NO log line, NO stderr, just a
+# fast return None from compose() / compose_all_opinions(). Hard-fail fast
+# with a clear log line instead.
+HERMES_BIN_CANDIDATES = (
+    "/usr/local/lib/hermes-agent/venv/bin/hermes",
+    "/usr/local/bin/hermes",
+)
+
+
+def _resolve_hermes() -> str | None:
+    for candidate in HERMES_BIN_CANDIDATES:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    found = shutil.which("hermes")
+    return found if found else None
+
 logger = logging.getLogger(__name__)
 
 
@@ -185,23 +204,26 @@ def _format_user_prompt(facts: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def compose(facts: dict[str, Any], *, timeout: int = 120) -> dict[str, str] | None:
+def compose(facts: dict[str, Any], *, timeout: int = 240) -> dict[str, str] | None:
     """Generate narrative via Hermes gateway. Returns None on any failure.
 
     Args:
         facts: dict of metrics (see _format_user_prompt for keys).
-        timeout: subprocess timeout in seconds (default 120; was 45 — bumped
-            2026-07-10 because M3/MiniMax provider is slow today, returning
-            >45s on production prompts and causing rc=2 failures on /pult
-            LLM-нарратив button. See TODO below to revisit after provider
-            normalizes. 4× observed in journalctl job=73..76.)
+        timeout: subprocess timeout in seconds (default 240; was 45 → 120 → 240.
+            Bumped to 240 on 2026-07-17 after a morning of rc=2 jobs job=151..181 —
+            provider is back to single-digit-second latency today, but we've
+            also been getting sporadic 504 → first-attempt timeout → retry
+            only happens at the supabase layer. 240 leaves ~4× headroom over
+            the worst observed run of ~55s reported in journalctl 11:21..11:32.
+            Worker TIMEOUTS['llm']=300 gives another 60s of outer margin.)
 
     Returns:
         {headline, lead, footer_title, footer_text} or None.
     """
-    hermes_bin = shutil.which("hermes")
+    hermes_bin = _resolve_hermes()
     if not hermes_bin:
-        logger.warning("narrative: 'hermes' binary not in PATH, skipping LLM call")
+        logger.warning("narrative: 'hermes' binary not in PATH (candidates=%s, PATH=%s), skipping LLM call",
+                       HERMES_BIN_CANDIDATES, os.environ.get("PATH", ""))
         return None
 
     user_prompt = _format_user_prompt(facts)
@@ -270,9 +292,9 @@ async def _compose_block_async(block_name: str, facts: dict[str, Any], *, timeou
     Per-block prompt is built from a small template + facts dict; system
     prompt enforces tone and length constraints.
     """
-    hermes_bin = shutil.which("hermes")
+    hermes_bin = _resolve_hermes()
     if not hermes_bin:
-        logger.warning("narrative[%s]: hermes missing, skip", block_name)
+        logger.warning("narrative[%s]: hermes missing (PATH=%s), skip", block_name, os.environ.get("PATH", ""))
         return None
 
     user_prompt = _format_opinion_prompt(block_name, facts)

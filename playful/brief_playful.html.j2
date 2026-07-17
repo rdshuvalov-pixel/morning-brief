@@ -433,6 +433,16 @@
       margin-right: 4px;
     }
 
+    /* Per-block narrative (2-4 предложения, отдельная строка под opinion).
+       Визуально спокойнее — без рамки, без курсива, читается как продолжение блока. */
+    .block-narrative {
+      margin: 8px 0 0;
+      padding: 0;
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.55;
+    }
+
     .progress-group {
       display: grid;
       gap: 12px;
@@ -709,6 +719,9 @@
     {% if opinion_battery %}
       <div class="block-opinion">{{ opinion_battery }}</div>
     {% endif %}
+    {% if block_narrative_battery %}
+      <p class="block-narrative">{{ block_narrative_battery }}</p>
+    {% endif %}
   </section>
 
   <section class="stack">
@@ -848,6 +861,9 @@
       {% if opinion_calendar %}
         <div class="block-opinion">{{ opinion_calendar }}</div>
       {% endif %}
+      {% if block_narrative_calendar %}
+        <p class="block-narrative">{{ block_narrative_calendar }}</p>
+      {% endif %}
     </article>
 
     {# ── 4/2. Задачи на сегодня (Todoist) ── #}
@@ -884,6 +900,9 @@
 
       {% if opinion_tasks %}
         <div class="block-opinion">{{ opinion_tasks }}</div>
+      {% endif %}
+      {% if block_narrative_tasks %}
+        <p class="block-narrative">{{ block_narrative_tasks }}</p>
       {% endif %}
     </article>
     {% endif %}
@@ -928,6 +947,9 @@
       {% if opinion_movement %}
         <div class="block-opinion">{{ opinion_movement }}</div>
       {% endif %}
+      {% if block_narrative_movement %}
+        <p class="block-narrative">{{ block_narrative_movement }}</p>
+      {% endif %}
     </article>
 
     {# ── 6. Что снаружи (погода) ── #}
@@ -960,6 +982,9 @@
 
       {% if opinion_weather %}
         <div class="block-opinion">{{ opinion_weather }}</div>
+      {% endif %}
+      {% if block_narrative_weather %}
+        <p class="block-narrative">{{ block_narrative_weather }}</p>
       {% endif %}
     </article>
 
