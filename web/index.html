@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Morning Brief — 17 July</title>
+  <title>Morning Brief — 18 July</title>
   <style>
     :root {
       --bg-1: #fff3d3;
@@ -133,7 +133,7 @@
       border-radius: 50%;
       background:
         radial-gradient(circle closest-side, #fffaf6 68%, transparent 69% 100%),
-        conic-gradient(var(--good) 0 356deg, rgba(45,155,125,0.14) 356deg 360deg);
+        conic-gradient(var(--good) 0 328deg, rgba(45,155,125,0.14) 328deg 360deg);
       display: grid;
       place-items: center;
       text-align: center;
@@ -419,6 +419,16 @@
       margin-right: 4px;
     }
 
+    /* Per-block narrative (2-4 предложения, отдельная строка под opinion).
+       Визуально спокойнее — без рамки, без курсива, читается как продолжение блока. */
+    .block-narrative {
+      margin: 8px 0 0;
+      padding: 0;
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.55;
+    }
+
     .progress-group {
       display: grid;
       gap: 12px;
@@ -656,17 +666,17 @@
     <div class="hero-top">
       <div>
         
-        <div class="hero-badge">17 July</div>
+        <div class="hero-badge">18 July</div>
 
-        <h1>99 — спать уже не нужно</h1>
-        <p class="lead">Батарейка 99, сон 7ч 25м, score 83. Тело в режиме «давай ещё вчера». HRV 69, пульс 46 — без тормозов. Шаги вчера 12 590, баланс +267 ккал — ел как нормальный человек.</p>
+        <h1>Утро 18 July</h1>
+        <p class="lead">Утренний бриф собран из живых данных. Нарратив-NLG не подключен — текст ниже дефолтный.</p>
       </div>
 
       
       <div class="battery">
         <div class="battery-ring">
           <div>
-            <strong>99</strong>
+            <strong>91</strong>
             <span>Battery</span>
           </div>
         </div>
@@ -677,23 +687,24 @@
     <div class="hero-grid">
       <div class="hero-stat">
         <div class="label">Сон</div>
-        <div class="value">7ч 25м</div>
-        <div class="meta">Sleep score 83</div>
+        <div class="value">7ч 19м</div>
+        <div class="meta">Sleep score 79</div>
       </div>
       <div class="hero-stat">
         <div class="label">HRV</div>
-        <div class="value">69</div>
+        <div class="value">65</div>
         <div class="meta">—</div>
       </div>
       <div class="hero-stat">
         <div class="label">Пульс</div>
-        <div class="value">46</div>
+        <div class="value">48</div>
         <div class="meta">Resting bpm</div>
       </div>
     </div>
 
     
-      <div class="block-opinion">99 батарейка на старте — редкость. Бери самую сложную задачу до обеда, пока ресурс на пике, и не разменивайся на рутину.</div>
+    
+      <p class="block-narrative">Body Battery 91/100. Сон 7ч 19м (score 79). HRV 65. Бери главное до обеда, потом просядет.</p>
     
   </section>
 
@@ -714,9 +725,9 @@
         <div class="soft">
           <div class="label">Sleep Stages</div>
           <div class="sleep-bar">
-            <div class="stage-deep"  style="width:13%;"></div>
+            <div class="stage-deep"  style="width:27%;"></div>
             <div class="stage-rem"   style="width:22%;"></div>
-            <div class="stage-light" style="width:62%;"></div>
+            <div class="stage-light" style="width:48%;"></div>
             <div class="stage-awake" style="width:3%;"></div>
           </div>
           <div class="axis">
@@ -725,9 +736,9 @@
             <span>07:00</span>
           </div>
           <div class="legend">
-            <span><i style="background:#8f67d8;"></i>Deep 0ч 59м</span>
-            <span><i style="background:#ff8e6f;"></i>REM 1ч 38м</span>
-            <span><i style="background:#ffb37e;"></i>Light 4ч 35м</span>
+            <span><i style="background:#8f67d8;"></i>Deep 1ч 57м</span>
+            <span><i style="background:#ff8e6f;"></i>REM 1ч 37м</span>
+            <span><i style="background:#ffb37e;"></i>Light 3ч 32м</span>
             
               <span><i style="background:rgba(34,27,51,0.18);"></i>Awake 0ч 13м</span>
             
@@ -737,9 +748,9 @@
         
         <div class="soft">
           <div class="label">SpO2</div>
-          <div class="value" style="font-size:30px;">95%</div>
+          <div class="value" style="font-size:30px;">94%</div>
           
-            <div class="meta">стабильно всю ночь</div>
+            <div class="meta">—</div>
           
           <div class="spark-wrap">
             <svg viewBox="0 0 120 52" width="100%" height="52" aria-label="HRV trend">
@@ -765,10 +776,10 @@
       <div class="metrics-2">
         <div class="metric-box">
           <div class="label">Body Battery · пик</div>
-          <div class="value">99</div>
+          <div class="value">91</div>
           
           
-            <div class="delta delta-good">+16 vs вчера</div>
+            <div class="delta delta-rose">-8 vs вчера</div>
           
         </div>
 
@@ -786,8 +797,8 @@
 
         <div class="metric-box">
           <div class="label">SpO2 <span style="font-size:9px; color:var(--muted-2);">(вчера)</span></div>
-          <div class="value">95%</div>
-          <div class="meta">Ровное дыхание</div>
+          <div class="value">94%</div>
+          <div class="meta">—</div>
         </div>
       </div>
     </article>
@@ -799,38 +810,34 @@
           <div class="label">План</div>
           <div class="title">Сегодня в программе</div>
         </div>
-        <div class="pill pill-amber">1 встреч + DW</div>
+        <div class="pill pill-amber">2 meetings</div>
       </div>
 
       
         <div class="list">
           
-            <div class="item item-deepwork">
+            <div class="item ">
               <div>
-                <strong>Deep Work</strong>
-                
-                  <span class="item-sub">главная задача без переключений</span>
+                <strong>Триатлон вело</strong>
                 
               </div>
               <div class="when">
                 
-                  <strong>08:00</strong>
                 
-                
-                  <span class="meta">540 мин</span>
+                  <span class="meta">2ч</span>
                 
               </div>
             </div>
           
             <div class="item ">
               <div>
-                <strong>Бассейн Мила</strong>
+                <strong>Триатлон Плавание</strong>
                 
               </div>
               <div class="when">
                 
                 
-                  <span class="meta">1ч 05м</span>
+                  <span class="meta">1ч</span>
                 
               </div>
             </div>
@@ -839,7 +846,8 @@
       
 
       
-        <div class="block-opinion">Ноль встреч и ноль Deep Work — день-чистовик, бери главное и не разменивайся на мелочь.</div>
+      
+        <p class="block-narrative">Встреч: 2. Между встречами — фокус на главном.</p>
       
     </article>
 
@@ -909,12 +917,13 @@
 
       
       <div class="tasks-summary">
-        <div class="tasks-summary-title">Теплица на балконе. Поехали</div>
-        <p class="tasks-summary-text">Ясно, 23.2° — день для улицы, а не для дивана. Топ-задача — разобраться с балконными теплицами. 30 задач в списке, начинай с этой. Сожги калории, а не время.</p>
+        <div class="tasks-summary-title">Хорошее начало</div>
+        <p class="tasks-summary-text">Бриф собран. Проверь ресурс утром и не отдавай сильное утро мелочам.</p>
       </div>
 
       
-        <div class="block-opinion">30 задач и ни одной p3 — сам выбираешь, с чего начать, и это ловушка. Возьми балконные теплицы, пока запал не слил энергию на мелочь.</div>
+      
+        <p class="block-narrative">На сегодня 30 задач. Из них 3 на p3 — это приоритет. Топ: «Найти, как делать теплицы для балкона маленькие». С него и начинай.</p>
       
     </article>
     
@@ -926,38 +935,39 @@
           <div class="label">Тело</div>
           <div class="title">Движение и питание</div>
         </div>
-        <div class="pill pill-rose">Move More</div>
+        <div class="pill pill-rose">Keep It Light</div>
       </div>
 
       <div class="progress-group">
         <div class="progress-row">
           <div class="progress-head">
             <span>Шаги</span>
-            <span>12 590 / 10000</span>
+            <span>8 307 / 10000</span>
           </div>
-          <div class="track"><div class="fill fill-steps" style="width:100%;"></div></div>
+          <div class="track"><div class="fill fill-steps" style="width:83%;"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-head">
             <span>Потратил</span>
-            <span>2 478 ккал</span>
+            <span>2 476 ккал</span>
           </div>
           <div class="track"><div class="fill fill-burn" style="width:83%;"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-head">
             <span>Съел</span>
-            <span>2 745 ккал</span>
+            <span>2 828 ккал</span>
           </div>
-          <div class="track"><div class="fill fill-eat" style="width:92%;"></div></div>
+          <div class="track"><div class="fill fill-eat" style="width:95%;"></div></div>
         </div>
         
-          <div class="meta">Баланс +267 ккал. Неплохой день, чтобы не переусердствовать.</div>
+          <div class="meta">Баланс +352 ккал. Профицит — активнее подвигайся в течение дня.</div>
         
       </div>
 
       
-        <div class="block-opinion">Шаги огонь, но +267 ккал за день — это лишний бублик на боку. Сегодня держи баланс ровным или чуть в минус.</div>
+      
+        <p class="block-narrative">Вчера 8307 шагов. Съел 2828, потратил 2476 ккал. Баланс +352 ккал. Темп держится, не сбавляй.</p>
       
     </article>
 
@@ -969,7 +979,7 @@
           <div class="title">Что снаружи</div>
         </div>
         
-          <div class="pill pill-blue">Wind 25 km/h</div>
+          <div class="pill pill-blue">Wind 24 km/h</div>
         
       </div>
 
@@ -979,32 +989,33 @@
             <div class="weather-icon">☀️</div>
             <div class="label">Утро</div>
             <div class="weather-temp">22°</div>
-            <div class="meta">Ясно</div>
+            <div class="meta">Переменная облачность</div>
           </div>
         
           <div class="weather-card">
             <div class="weather-icon">☀️</div>
             <div class="label">День</div>
             <div class="weather-temp">23°</div>
-            <div class="meta">Ясно</div>
+            <div class="meta">Облачно с прояснениями</div>
           </div>
         
           <div class="weather-card">
             <div class="weather-icon">☀️</div>
             <div class="label">Вечер</div>
             <div class="weather-temp">20°</div>
-            <div class="meta">Ясно</div>
+            <div class="meta">Переменная облачность</div>
           </div>
         
       </div>
 
       
       
-        <div class="weather-vs-yesterday">утром так же; днём так же; вечером так же; ветер сильнее на 7 км/ч.</div>
+        <div class="weather-vs-yesterday">утром так же; днём так же; вечером так же.</div>
       
 
       
-        <div class="block-opinion">23 и ясно — грех сидеть. Окно на балконе не считается, выходи наружу хотя бы на 20 минут.</div>
+      
+        <p class="block-narrative">Днём 22.9°, облачно с прояснениями. К вечеру на 3° прохладнее. Окно для дел на улице — пока светло.</p>
       
     </article>
 
