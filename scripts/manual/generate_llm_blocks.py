@@ -279,8 +279,20 @@ def main() -> int:
     # Persist to the five briefs.narrative_{block} columns.
     brief = get_brief(target)
     if not brief:
-        log.error("[%s] no brief row, abort", target)
-        return 3
+        # 2026-07-22: previously aborted with rc=3 "no brief row". Now we
+        # create the row via upsert_brief() so the LLM-button works even
+        # if Render+publish was never pressed. The fallback-assembly path
+        # in _maybe_write_narrative() (--with-narrative) depends on having
+        # *some* briefs.id to PATCH.
+        log.warning("[%s] no brief row — creating via upsert_brief()", target)
+        try:
+            from db.client import upsert_brief
+            brief = upsert_brief(target.isoformat())
+        except Exception as e:
+            log.error("[%s] upsert_brief failed: %s", target, e)
+        if not brief or not brief.get("id"):
+            log.error("[%s] cannot create brief row, abort", target)
+            return 3
     brief_id = brief["id"]
 
     write_failed: list[str] = []
