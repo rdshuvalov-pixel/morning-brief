@@ -408,17 +408,25 @@ def _maybe_write_narrative(target, ctx, log) -> bool:
                       ("narrative_weather","narrative_tasks",
                        "narrative_movement","narrative_calendar",
                        "narrative_battery")}
-            # Headline — prefer battery block, else first non-empty block
-            headline = blocks["battery"] or next(
-                (v for v in blocks.values() if v), "Утренний бриф"
-            ).rstrip(".").split(".")[0]
+            # Headline — prefer battery block, else first non-empty block.
+            # Use .get() everywhere; missing keys fall back to a stub
+            # rather than raising KeyError (2026-07-22: per-blocks may be
+            # empty strings, and the headline/lead/footer logic must still
+            # produce *something* useful for the user).
+            headline_src = blocks.get("narrative_battery") or \
+                next((v for v in blocks.values() if v), "Утренний бриф")
+            headline = headline_src.rstrip(".").split(".")[0]
             if not headline.endswith("."):
                 headline = headline + "." if len(headline) < 80 else headline
             # Lead — flow: weather → tasks → movement
-            lead_chunks = [blocks[k] for k in ("weather","tasks","movement") if blocks[k]]
+            lead_keys = ("narrative_weather", "narrative_tasks", "narrative_movement")
+            lead_chunks = [blocks[k] for k in lead_keys if blocks.get(k)]
             lead = " ".join(lead_chunks).strip()
+            if not lead:
+                # Per-blocks were all empty — fallback to the headline as a last resort
+                lead = headline_src if headline_src != "Утренний бриф" else "День ждёт плана."
             # Footer — calendar hint
-            cal = blocks["calendar"]
+            cal = blocks.get("narrative_calendar", "")
             footer_title = "Куда сфокусироваться"
             if cal:
                 footer_text = cal.rstrip(".") + ("." if not cal.endswith(".") else "")
