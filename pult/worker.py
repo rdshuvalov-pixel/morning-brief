@@ -26,7 +26,7 @@ import subprocess
 import time
 import json
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date as _date
 
 from dotenv import load_dotenv
 from supabase import create_client
@@ -67,10 +67,8 @@ TIMEOUTS = {
     'calendar':         120,  # was 60; bumped because Google API slow on cold start
     'todoist':          60,
     'food':             60,
-    # Per-block LLM pipeline (миграция 008): 5 sequential hermes calls × ~30s
-    # + headroom. Worst observed: ~150s for full run (mirrors what we saw in
-    # journalctl 12:50-12:52 for the first end-to-end run).
-    'llm':              300,
+    # Retry headroom for 5 block calls plus global narrative.
+    'llm':              540,
     'weekly-recap':     240,  # 4× Supabase queries + LLM + Telegram send
     'render-publish':   600,  # archive_and_publish.sh full pipeline
 }
@@ -151,10 +149,18 @@ def run_one(job: dict) -> None:
     # payload may be [] OR [args1_dict, args2_str] OR [args1_dict] depending
     # on insert_job args. First element is the merged payload JSON, second
     # (if present) is the p_payload_extra string. Pull `date` from the first
-    # element if it's a dict, else default to 'unknown'.
-    date = 'unknown'
+    # element if it's a dict, else default to today UTC.
+    # Bug 2026-07-18: trigger.js sends p_date, but the RPC `insert_job` merges
+    # that into the payload's date field only via some paths. When date is
+    # missing, downstream scripts (e.g. generate_llm_blocks.py) crash on
+    # `datetime.strptime('unknown', '%Y-%m-%d')`. Fall back to today UTC.
+    raw_date = None
     if isinstance(payload, list) and payload and isinstance(payload[0], dict):
-        date = payload[0].get('date') or 'unknown'
+        raw_date = payload[0].get('date')
+    if not raw_date or not isinstance(raw_date, str) or not raw_date.strip():
+        raw_date = _date.today().isoformat()
+        print(f'[run_one] job={job_id} date missing in payload, fallback to today={raw_date}', flush=True)
+    date = raw_date
     print(f'[run_one] job={job_id} script={script} date={date}', flush=True)
 
     if script not in SCRIPTS:
@@ -178,8 +184,12 @@ def run_one(job: dict) -> None:
     # Per-block LLM pipeline (миграция 008, 2026-07-17): --date + --all + --write.
     # Кнопка 'llm' в /pult запускает именно это: 5 sequential LLM calls → 5
     # колонок briefs.narrative_*, сразу с записью (не dry-run).
+    # 2026-07-18: добавлен --with-narrative, чтобы кнопка также вызывала
+    # narrative.compose() и заполняла briefs.narrative (headline/lead/footer)
+    # + telegram_text. Без этого главная страница рендерилась с плейсхолдером
+    # "нарратив-NLG не подключен", хотя per-block колонки были живыми.
     if script == 'llm':
-        cmd = list(cmd) + ['--date', date, '--all', '--write']
+        cmd = list(cmd) + ['--date', date, '--all', '--write', '--with-narrative']
 
     # Build subprocess env. Preserve worker's env (loads .env via systemd EnvironmentFile),
     # but ensure PATH includes Hermes-agent venv bin dir so scripts can find gws-cli
@@ -246,22 +256,39 @@ def run_one(job: dict) -> None:
             stderr_text = stderr.decode('utf-8', errors='replace')[:2000]
             stdout_tail = stdout.decode('utf-8', errors='replace')[-500:]
 
+            # Always dump stdout/stderr to a per-job log file FIRST so we have
+            # the full transcript regardless of journald truncation. The Supabase
+            # `error` column still gets the structured summary for /pult UI.
+            try:
+                LOG_DIR = '/root/morning_brief_v2/logs/pult'
+                os.makedirs(LOG_DIR, exist_ok=True)
+                log_path = f'{LOG_DIR}/job-{job_id}-{script}-{date}.log'
+                with open(log_path, 'wb') as lf:
+                    lf.write(b'=== STDOUT (last 4000 bytes) ===\n')
+                    lf.write(stdout[-4000:])
+                    lf.write(b'\n\n=== STDERR (full) ===\n')
+                    lf.write(stderr)
+                print(f'[run_one] job={job_id} full log: {log_path}', flush=True)
+            except Exception as log_err:
+                print(f'[run_one] job={job_id} log dump failed: {log_err}', flush=True)
+
             if rc == 0:
                 update_status(job_id, 'done')
                 print(f'[run_one] job={job_id} DONE', flush=True)
             else:
-                # DIAG 2026-07-17 — show ALL stderr not just last 200 chars
-                # so we stop guessing. Also print stderr line count and
-                # last INFO/ERROR/WARNING level lines.
+                # DIAG 2026-07-17 — show stderr line count + last 300 chars.
+                # Full stderr now lives in /root/morning_brief_v2/logs/pult/job-N-*,
+                # see the log dump above (2026-07-20: journald truncates long
+                # error strings, so we can no longer rely on stderr_tail alone).
                 err_lines = stderr_text.splitlines()
                 err = (
                     f'rc={rc} stderr_lines={len(err_lines)} '
-                    f'last300={stderr_text[-300:]} '
-                    f'last_errlines='
+                    f'stderr_tail={stderr_text[-300:]} '
+                    f'stderr_errlines='
                     f'{[l for l in err_lines[-12:] if "ERROR" in l or "Traceback" in l or "return 2" in l or "None" in l]}'
                 )
                 update_status(job_id, 'failed', err)
-                print(f'[run_one] job={job_id} FAILED rc={rc} stderr_tail={stderr_text[-300:]}', flush=True)
+                print(f'[run_one] job={job_id} FAILED rc={rc} stderr_tail={stderr_text[-300:]} (full log above)', flush=True)
         except subprocess.TimeoutExpired:
             timed_out = True
             # `proc` is bound here because we assigned it before communicate().
@@ -289,6 +316,25 @@ def run_one(job: dict) -> None:
                 pass
             update_status(job_id, 'failed', f'timeout after {timeout}s (group killed)')
             print(f'[run_one] job={job_id} TIMEOUT after {timeout}s (group killed)', flush=True)
+            # Dump whatever partial stdout/stderr we got before SIGKILL.
+            try:
+                LOG_DIR = '/root/morning_brief_v2/logs/pult'
+                os.makedirs(LOG_DIR, exist_ok=True)
+                with open(f'{LOG_DIR}/job-{job_id}-{script}-{date}.timeout.log', 'wb') as lf:
+                    lf.write(b'=== STDOUT (partial) ===\n')
+                    try:
+                        if proc.stdout is not None:
+                            lf.write(proc.stdout.read() or b'')
+                    except Exception:
+                        pass
+                    lf.write(b'\n\n=== STDERR (partial) ===\n')
+                    try:
+                        if proc.stderr is not None:
+                            lf.write(proc.stderr.read() or b'')
+                    except Exception:
+                        pass
+            except Exception as log_err:
+                print(f'[run_one] job={job_id} timeout-log dump failed: {log_err}', flush=True)
         except Exception as e:
             error_msg = f'{type(e).__name__}: {e}'
             tb = traceback.format_exc()[:500]

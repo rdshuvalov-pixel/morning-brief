@@ -35,6 +35,15 @@ LOG="$LOG_DIR/publish-$DATE.log"
 echo "[publish] start date=$DATE $(date -u +%FT%TZ)" | tee -a "$LOG"
 
 # Step 1: rerender archive/<date>.html from DB
+# The LLM button is the canonical writer for briefs.narrative + five
+# briefs.narrative_* columns. Publishing must not trigger another LLM run:
+# it only renders the already-populated DB row and fails visibly if that row
+# is incomplete.
+echo "[publish] preflight: verify complete narrative row for $DATE" | tee -a "$LOG"
+if ! ./.venv/bin/python scripts/manual/verify_llm_row.py --date "$DATE" 2>&1 | tee -a "$LOG"; then
+    echo "[publish] FAIL: narrative row incomplete; press LLM narrative first" | tee -a "$LOG"
+    exit 2
+fi
 echo "[publish] step 1: rerender_for_date.py --date $DATE --no-llm" | tee -a "$LOG"
 ./.venv/bin/python rerender_for_date.py --date "$DATE" --no-llm 2>&1 | tee -a "$LOG"
 RC=${PIPESTATUS[0]}

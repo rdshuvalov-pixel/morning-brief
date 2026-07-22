@@ -3,7 +3,7 @@
 
 Развитие generate_llm.py: вместо одного монолитного вызова — отдельные
 блоки (weather/tasks/movement/calendar/battery), каждый со своим нарративом.
-Результат пишется в briefs.narrative_blocks (jsonb) и briefs.narrative_blocks_meta.
+Результат пишется в пять briefs.narrative_{block} колонок и briefs.narrative_blocks_meta.
 
 Использование:
     # один блок, dry-run (без записи в БД)
@@ -30,8 +30,10 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import date, datetime
 from pathlib import Path
+from typing import Awaitable, Callable, Sequence
 
 sys.path.insert(0, "/root/morning_brief_v2")
 
@@ -58,6 +60,9 @@ try:
 except Exception:
     pass
 log = logging.getLogger("generate_llm_blocks")
+
+LLM_ATTEMPTS = 2
+LLM_RETRY_DELAY_SEC = 5
 
 
 def _build_block_facts_for_narrative(ctx: dict) -> dict[str, dict]:
@@ -176,7 +181,11 @@ def main() -> int:
     block_group.add_argument("--all", action="store_true",
                              help="All 5 blocks sequentially")
     p.add_argument("--write", action="store_true",
-                   help="Persist to briefs.narrative_blocks (default: dry-run)")
+                   help="Persist to briefs.narrative_{block} columns (default: dry-run)")
+    p.add_argument("--with-narrative", action="store_true",
+                   help="(only with --all) Also call narrative.compose() and write "
+                        "briefs.narrative (headline/lead/footer) + telegram_text. "
+                        "The /pult LLM button uses this to fill the complete brief row.")
     p.add_argument("--timeout", type=int, default=90,
                    help="Per-block hermes timeout in seconds (default 90)")
     args = p.parse_args()
@@ -198,7 +207,11 @@ def main() -> int:
     out_text: dict[str, str | None] = {}
     out_meta: dict[str, dict] = {}
     for blk in targets:
-        text, meta = asyncio.run(_one_block(blk, facts_by_block[blk], args.timeout))
+        text, meta = asyncio.run(_one_block_with_retries(
+            blk,
+            facts_by_block[blk],
+            args.timeout,
+        ))
         out_text[blk] = text
         out_meta[blk] = meta
 
@@ -211,28 +224,28 @@ def main() -> int:
         log.info("  %s [%s, %d chars]: %s", blk, src, len(text), preview)
 
     if not args.write:
-        log.info("[%s] DRY-RUN: pass --write to persist to brief_block_narratives", target)
+        log.info("[%s] DRY-RUN: pass --write to persist to briefs.narrative_*", target)
         print("=" * 60)
-        print("NARRATIVE BLOCKS (would be written to brief_block_narratives):")
+        print("NARRATIVE BLOCKS (would be written to briefs.narrative_*):")
         print(json.dumps(out_text, ensure_ascii=False, indent=2))
         print()
         print("META:")
         print(json.dumps(out_meta, ensure_ascii=False, indent=2))
         return 0
 
-    # Persist to brief_block_narratives (UPSERT per (brief_id, block_name)).
-    # History-friendly: каждый перезапуск блока пишет новую строку (а не
-    # patch поверх), upsert ON CONFLICT заменяет существующую.
+    # Persist to the five briefs.narrative_{block} columns.
     brief = get_brief(target)
     if not brief:
         log.error("[%s] no brief row, abort", target)
         return 3
     brief_id = brief["id"]
 
+    write_failed: list[str] = []
     for blk in targets:
         text = out_text.get(blk)
         if not text:
             log.warning("[%s] block %s has no text, skipping upsert", target, blk)
+            write_failed.append(f"narrative_{blk}:empty")
             continue
         meta = out_meta.get(blk, {})
         try:
@@ -249,8 +262,156 @@ def main() -> int:
                      target, blk, len(text), meta.get("source"))
         except Exception as e:
             log.error("[%s] failed to upsert block %s: %s", target, blk, e)
+            write_failed.append(f"narrative_{blk}:write-failed")
+
+    # Optional: also call narrative.compose() to populate briefs.narrative
+    # (headline/lead/footer) and briefs.telegram_text. Without this step,
+    # the main page renders a "narrative-NLG not connected" placeholder even
+    # though per-block narratives are present. Triggered by --with-narrative.
+    # Only meaningful with --all (single-block mode is for spot-fix use).
+    narrative_written = False
+    if args.with_narrative:
+        if not args.all:
+            log.warning("[%s] --with-narrative ignored (requires --all)", target)
+        else:
+            narrative_written = _maybe_write_narrative(target, ctx, log)
+
+    incomplete = write_failed + _collect_incomplete_outputs(
+        targets,
+        out_text,
+        out_meta,
+        require_narrative=bool(args.with_narrative and args.all),
+        narrative_written=narrative_written,
+    )
+    if incomplete:
+        log.error("[%s] incomplete LLM write: %s", target, ", ".join(dict.fromkeys(incomplete)))
+        return 2
 
     return 0
+
+
+def _maybe_write_narrative(target, ctx, log) -> bool:
+    """Call narrative.compose() + write briefs.narrative + telegram_text.
+
+    Delegates to generate_llm.py's _format_facts_for_narrative (the canonical
+    fact shape for the headline/lead/footer prompt) and compose() (the
+    canonical hermes -z call). On any failure, leaves briefs.narrative
+    untouched and returns False — the caller marks the LLM job incomplete.
+    """
+    try:
+        # Import here to avoid module-level cycles (generate_llm imports this
+        # file's playful.render_playful transitively, but the other way is fine).
+        from scripts.manual.generate_llm import (
+            _format_facts_for_narrative,
+            _derive_telegram_text,
+            _fallback_opinion,
+        )
+        from playful.narrative import compose, OPINION_BLOCKS
+    except Exception as e:
+        log.error("[%s] cannot import narrative helpers: %s", target, e)
+        return False
+
+    try:
+        facts = _format_facts_for_narrative(ctx)
+    except Exception as e:
+        log.error("[%s] _format_facts_for_narrative failed: %s", target, e)
+        return False
+
+    log.info("[%s] calling narrative.compose (headline/lead/footer, 120s timeout)", target)
+    narrative = _compose_narrative_with_retries(facts, log, compose_fn=compose)
+    if not narrative:
+        log.warning("[%s] narrative.compose returned None — briefs.narrative will NOT be updated", target)
+        return False
+
+    # Per-block opinions: keep for compatibility with render_playful (still reads
+    # them from briefs.narrative->opinions). Use deterministic fallback where
+    # LLM compose_all_opinions is not run here — fill in what we already wrote
+    # to per-block narratives (best-effort, not via LLM).
+    from db.client import get_client, get_brief
+    sb = get_client()
+    opinions: dict[str, str] = {}
+    for blk in OPINION_BLOCKS:
+        fb = _fallback_opinion(blk, ctx)
+        if fb:
+            opinions[blk] = fb
+
+    payload = {
+        "headline":     narrative.get("headline"),
+        "lead":         narrative.get("lead"),
+        "footer_title": narrative.get("footer_title"),
+        "footer_text":  narrative.get("footer_text"),
+        "opinions":     opinions,
+    }
+    narrative_json = json.dumps(payload, ensure_ascii=False)
+    telegram_text = _derive_telegram_text(payload)
+
+    log.info("[%s] narrative JSON ready (%d bytes)", target, len(narrative_json))
+    log.info("  headline: %s", payload["headline"])
+    log.info("  telegram_text preview: %s",
+             telegram_text[:120].replace("\n", " ⏎ "))
+
+    brief = get_brief(target)
+    if not brief:
+        log.error("[%s] no brief row, cannot write narrative", target)
+        return False
+    brief_id = brief["id"]
+
+    try:
+        sb.table("briefs").update({
+            "narrative":     narrative_json,
+            "telegram_text": telegram_text,
+        }).eq("id", brief_id).execute()
+        log.info("[%s] wrote narrative (%d bytes) + telegram_text (%d bytes)",
+                 target, len(narrative_json), len(telegram_text))
+        return True
+    except Exception as e:
+        log.error("[%s] failed to update briefs.narrative: %s", target, e)
+        return False
+
+
+def _compose_narrative_with_retries(
+    facts: dict,
+    log,
+    *,
+    attempts: int = LLM_ATTEMPTS,
+    retry_delay: float = LLM_RETRY_DELAY_SEC,
+    timeout: int = 120,
+    compose_fn: Callable[..., dict[str, str] | None] | None = None,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> dict[str, str] | None:
+    """Retry the global headline/lead/footer LLM call on transient failure."""
+    if compose_fn is None:
+        from playful.narrative import compose as compose_fn
+
+    for attempt in range(1, max(1, attempts) + 1):
+        result = compose_fn(facts, timeout=timeout)
+        if result:
+            return result
+        if attempt < attempts:
+            log.warning("narrative.compose attempt %d/%d failed; retrying in %.1fs",
+                        attempt, attempts, retry_delay)
+            sleep_fn(retry_delay)
+    return None
+
+
+def _collect_incomplete_outputs(
+    targets: Sequence[str],
+    out_text: dict[str, str | None],
+    out_meta: dict[str, dict],
+    *,
+    require_narrative: bool,
+    narrative_written: bool,
+) -> list[str]:
+    """Return missing/degraded DB fields for the LLM button completion gate."""
+    incomplete: list[str] = []
+    for blk in targets:
+        if not out_text.get(blk):
+            incomplete.append(f"narrative_{blk}:empty")
+        elif out_meta.get(blk, {}).get("source") != "llm":
+            incomplete.append(f"narrative_{blk}:not-llm")
+    if require_narrative and not narrative_written:
+        incomplete.extend(("narrative", "telegram_text"))
+    return incomplete
 
 
 async def _one_block(name: str, facts: dict, timeout: int) -> tuple[str | None, dict]:
@@ -270,6 +431,30 @@ async def _one_block(name: str, facts: dict, timeout: int) -> tuple[str | None, 
         "chars": len(text) if text else 0,
     }
     return (text or None), meta
+
+
+async def _one_block_with_retries(
+    name: str,
+    facts: dict,
+    timeout: int,
+    *,
+    attempts: int = LLM_ATTEMPTS,
+    retry_delay: float = LLM_RETRY_DELAY_SEC,
+    one_block_fn: Callable[[str, dict, int], Awaitable[tuple[str | None, dict]]] = _one_block,
+) -> tuple[str | None, dict]:
+    """Retry a block when Hermes produced fallback/empty instead of real LLM text."""
+    last: tuple[str | None, dict] = (None, {"source": "empty", "error": "not-run"})
+    for attempt in range(1, max(1, attempts) + 1):
+        last = await one_block_fn(name, facts, timeout)
+        text, meta = last
+        if text and meta.get("source") == "llm":
+            return last
+        if attempt < attempts:
+            log.warning("block %s attempt %d/%d returned source=%s error=%s; retrying in %.1fs",
+                        name, attempt, attempts, meta.get("source"), meta.get("error"), retry_delay)
+            if retry_delay:
+                await asyncio.sleep(retry_delay)
+    return last
 
 
 if __name__ == "__main__":
