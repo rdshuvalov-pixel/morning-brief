@@ -61,8 +61,51 @@ except Exception:
     pass
 log = logging.getLogger("generate_llm_blocks")
 
-LLM_ATTEMPTS = 2
+LLM_ATTEMPTS = 2  # per block (preview is bounded by TIMEOUTS['llm'] in worker.py)
 LLM_RETRY_DELAY_SEC = 5
+LLM_HEALTHCHECK_TIMEOUT = 15  # hard preflight — if hermes -z 'ping' fails, skip ALL LLM calls immediately and write fallback blocks
+
+import shutil
+import subprocess as _sp
+
+
+def _hermes_healthcheck(log) -> bool:
+    """Cheap preflight: `hermes -z "ping"` with a tight timeout. If the LLM
+    backend is currently serving 404s (observed 2026-07-22 11:15-11:19),
+    skip every block call and write deterministic fallbacks instead —
+    saves the ~75-200s budget for nothing and prevents worker SIGTERM. Returns
+    True if hermes responded with a sensible Russian/English answer; False on
+    timeout, error-pattern response, or non-zero exit.
+    """
+    hermes_bin = shutil.which("hermes") or "/usr/local/lib/hermes-agent/venv/bin/hermes"
+    try:
+        proc = _sp.run(
+            [hermes_bin, "-z", "ping"],
+            capture_output=True, text=True, timeout=LLM_HEALTHCHECK_TIMEOUT,
+        )
+    except _sp.TimeoutExpired:
+        log.warning("llm-healthcheck: hermes -z 'ping' timed out after %ds → all blocks will use fallback",
+                    LLM_HEALTHCHECK_TIMEOUT)
+        return False
+    except Exception as e:
+        log.warning("llm-healthcheck: spawn failed: %s", e)
+        return False
+
+    out = (proc.stdout or "").strip()
+    if proc.returncode != 0 or not out:
+        log.warning("llm-healthcheck: rc=%d stderr=%s",
+                    proc.returncode, (proc.stderr or "")[:200])
+        return False
+    low = out.lower()
+    # Common error fragments observed when the upstream backend is sick
+    for needle in ("api call failed", "http 4", "http 5", "404", "401",
+                   "rate limit", "i cannot", "i'm sorry"):
+        if needle in low:
+            log.warning("llm-healthcheck: response contains %r (rc=%d) → fallback mode",
+                        needle, proc.returncode)
+            return False
+    log.info("llm-healthcheck: hermes responded ok (%d chars)", len(out))
+    return True
 
 
 def _build_block_facts_for_narrative(ctx: dict) -> dict[str, dict]:
@@ -295,8 +338,18 @@ def _maybe_write_narrative(target, ctx, log) -> bool:
 
     Delegates to generate_llm.py's _format_facts_for_narrative (the canonical
     fact shape for the headline/lead/footer prompt) and compose() (the
-    canonical hermes -z call). On any failure, leaves briefs.narrative
-    untouched and returns False — the caller marks the LLM job incomplete.
+    canonical hermes -z call).
+
+    Robustness contract (added 2026-07-22 after the morning-brief outage):
+    ALWAYS write briefs.narrative + briefs.telegram_text — even if compose()
+    returns None (e.g. LLM backend 404, hermes -z timeout). When compose()
+    fails, assemble headline/lead/footer from the per-block narratives already
+    written to briefs.narrative_* — deterministic, fact-grounded, not as
+    lively as a real LLM pass, but it guarantees the morning Telegram send
+    and the site render both have content.
+
+    Returns True iff write succeeded (whichever path produced the payload).
+    Returns False only when there is genuinely nothing to write.
     """
     try:
         # Import here to avoid module-level cycles (generate_llm imports this
@@ -319,9 +372,56 @@ def _maybe_write_narrative(target, ctx, log) -> bool:
 
     log.info("[%s] calling narrative.compose (headline/lead/footer, 120s timeout)", target)
     narrative = _compose_narrative_with_retries(facts, log, compose_fn=compose)
+    payload_source = "llm"  # tag for later diagnosis
+
     if not narrative:
-        log.warning("[%s] narrative.compose returned None — briefs.narrative will NOT be updated", target)
-        return False
+        # ── FALLBACK PATH (2026-07-22): never leave briefs.narrative NULL when
+        # per-block narratives are present. Assemble headline/lead/footer from
+        # the just-written briefs.narrative_* columns so the site render and
+        # Telegram send both work the next morning.
+        log.warning("[%s] narrative.compose returned None — assembling from per-block fallbacks", target)
+        try:
+            from db.client import get_client, get_brief
+            sb = get_client()
+            brief = get_brief(target)
+            if not brief:
+                log.error("[%s] no brief row, cannot write narrative", target)
+                return False
+            r = sb.schema("morning_brief_v2").from_("briefs").select(
+                "narrative_weather,narrative_tasks,narrative_movement,"
+                "narrative_calendar,narrative_battery"
+            ).eq("id", brief["id"]).execute()
+            row = (r.data or [{}])[0]
+            blocks = {k: (row.get(k) or "").strip() for k in
+                      ("narrative_weather","narrative_tasks",
+                       "narrative_movement","narrative_calendar",
+                       "narrative_battery")}
+            # Headline — prefer battery block, else first non-empty block
+            headline = blocks["battery"] or next(
+                (v for v in blocks.values() if v), "Утренний бриф"
+            ).rstrip(".").split(".")[0]
+            if not headline.endswith("."):
+                headline = headline + "." if len(headline) < 80 else headline
+            # Lead — flow: weather → tasks → movement
+            lead_chunks = [blocks[k] for k in ("weather","tasks","movement") if blocks[k]]
+            lead = " ".join(lead_chunks).strip()
+            # Footer — calendar hint
+            cal = blocks["calendar"]
+            footer_title = "Куда сфокусироваться"
+            if cal:
+                footer_text = cal.rstrip(".") + ("." if not cal.endswith(".") else "")
+            else:
+                footer_text = "Действуй по плану: начни с главного."
+            narrative = {
+                "headline":     headline,
+                "lead":         lead,
+                "footer_title": footer_title,
+                "footer_text":  footer_text,
+            }
+            payload_source = "fallback"
+        except Exception as e:
+            log.error("[%s] fallback narrative assembly failed: %s", target, e)
+            return False
 
     # Per-block opinions: keep for compatibility with render_playful (still reads
     # them from briefs.narrative->opinions). Use deterministic fallback where
@@ -341,11 +441,12 @@ def _maybe_write_narrative(target, ctx, log) -> bool:
         "footer_title": narrative.get("footer_title"),
         "footer_text":  narrative.get("footer_text"),
         "opinions":     opinions,
+        "_source":      payload_source,  # diagnostic, not rendered
     }
     narrative_json = json.dumps(payload, ensure_ascii=False)
     telegram_text = _derive_telegram_text(payload)
 
-    log.info("[%s] narrative JSON ready (%d bytes)", target, len(narrative_json))
+    log.info("[%s] narrative JSON ready (%d bytes, source=%s)", target, len(narrative_json), payload_source)
     log.info("  headline: %s", payload["headline"])
     log.info("  telegram_text preview: %s",
              telegram_text[:120].replace("\n", " ⏎ "))
@@ -357,12 +458,12 @@ def _maybe_write_narrative(target, ctx, log) -> bool:
     brief_id = brief["id"]
 
     try:
-        sb.table("briefs").update({
+        sb.schema("morning_brief_v2").from_("briefs").update({
             "narrative":     narrative_json,
             "telegram_text": telegram_text,
         }).eq("id", brief_id).execute()
-        log.info("[%s] wrote narrative (%d bytes) + telegram_text (%d bytes)",
-                 target, len(narrative_json), len(telegram_text))
+        log.info("[%s] wrote narrative (%d bytes, source=%s) + telegram_text (%d bytes)",
+                 target, len(narrative_json), payload_source, len(telegram_text))
         return True
     except Exception as e:
         log.error("[%s] failed to update briefs.narrative: %s", target, e)
