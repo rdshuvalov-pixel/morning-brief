@@ -204,21 +204,23 @@ def run_one(job: dict) -> None:
     # gws-cli blocks on OAuth URL display. Set TERM=dumb (non-interactive).
     env['TERM'] = 'dumb'
 
-    # Special case: weekly-recap AND llm scripts invoke `hermes -z` which
-    # keys off $HOME for picking the LLM provider config. When HOME=/root
-    # (interactive shell) hermes finds /root/.hermes/.env with MINIMAX_API_KEY.
-    # When HOME=/root/.hermes/profiles/developer/home (this worker's systemd
-    # unit) that path's .hermes/.env doesn't exist and hermes errors
-    # "No inference provider configured" (2026-07-10). Force HOME=/root for
-    # any script that runs hermes -z — the unit HOME stays for gws-cli OAuth
-    # in the provider scripts (fetch_calendar, fetch_todoist).
+    # Special case: weekly-recap AND llm scripts invoke `hermes -z`.
+    # Both HOME and HERMES_HOME matter in profile mode:
+    #   - HOME=/root lets Hermes resolve the real user home;
+    #   - HERMES_HOME pins the developer profile config + credentials.
+    # The systemd worker itself has no HERMES_HOME. Without this explicit pin,
+    # `hermes -z` falls back to /root/.hermes (default profile), whose stale
+    # MiniMax endpoint returned `HTTP 404: 404 page not found` for every block
+    # while the developer profile was healthy (jobs 267-269, 2026-07-24).
     if script in ('llm', 'weekly-recap'):
         env['HOME'] = '/root'
+        env['HERMES_HOME'] = '/root/.hermes/profiles/developer'
 
     # DIAG (2026-07-09): print env that subprocess gets — debugging calendar hang
     print(f'[run_one] job={job_id} env dump:', flush=True)
     print(f'  PATH={env.get("PATH")}', flush=True)
     print(f'  HOME={env.get("HOME")}', flush=True)
+    print(f'  HERMES_HOME={env.get("HERMES_HOME")}', flush=True)
     print(f'  LANG={env.get("LANG")}', flush=True)
     print(f'  SHELL={env.get("SHELL")}', flush=True)
     print(f'  TERM={env.get("TERM")}', flush=True)
