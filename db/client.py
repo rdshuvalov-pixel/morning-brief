@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import contextmanager
 from datetime import date, datetime
@@ -9,6 +10,8 @@ from typing import Any, Generator
 
 from supabase import Client, create_client
 from supabase.lib.client_options import SyncClientOptions
+
+logger = logging.getLogger(__name__)
 
 _supabase_client: Client | None = None
 
@@ -96,10 +99,24 @@ _GARMIN_NUMERIC_COLS = {
     "deep_sleep_pct", "spo2", "skin_temp", "distance_km",
 }
 
+# Полный набор колонок garmin_metrics (001 + 002 + 006).
+# Провайдер может отдавать поля сверх схемы — например sleep_minute_rows /
+# sleep_minute_count предназначены для таблицы garmin_sleep_minutes (миграция
+# 009), а не для garmin_metrics. Без whitelist такое поле убивало ВЕСЬ upsert
+# с PGRST204, и в БД не попадали даже валидные агрегаты (bb/hrv/sleep/steps).
+# См. incident 2026-08-14.
+_GARMIN_KNOWN_COLS = _GARMIN_INT_COLS | _GARMIN_NUMERIC_COLS | {
+    "brief_id", "date",
+}
+
 
 def _coerce_garmin_row(metrics: dict[str, Any]) -> dict[str, Any]:
     coerced: dict[str, Any] = {}
+    dropped: list[str] = []
     for k, v in metrics.items():
+        if k not in _GARMIN_KNOWN_COLS:
+            dropped.append(k)
+            continue
         if v is None:
             coerced[k] = None
             continue
@@ -109,6 +126,13 @@ def _coerce_garmin_row(metrics: dict[str, Any]) -> dict[str, Any]:
             coerced[k] = round(float(v), 2)
         else:
             coerced[k] = v
+    if dropped:
+        # Никогда не молчать про отброшенные поля — иначе schema drift
+        # прячется до следующего инцидента (health-data-ingestion pitfall).
+        logger.warning(
+            "garmin_metrics: dropped %d field(s) not in schema: %s",
+            len(dropped), sorted(dropped),
+        )
     return coerced
 
 
@@ -126,6 +150,88 @@ def upsert_helio_metrics(brief_id: str, date_val: str, metrics: dict[str, Any]) 
     result = sb.table("helio_metrics").upsert(row, on_conflict="date").execute()
     data = result.data if hasattr(result, 'data') else result
     return data[0] if data else {}
+
+
+# garmin_sleep_minutes: time-series поминутной развертки сна.
+# См. db/migrations/009_garmin_sleep_minutes.sql.
+# Колоночные whitelists защищают от PGRST204 если провайдер отдаст поле
+# сверх схемы.
+_GARMIN_SLEEP_MINUTES_COLS = (
+    "stage", "movement", "spo2", "hrv", "stress",
+    "body_battery", "respiration",
+)
+
+
+def upsert_garmin_sleep_minutes(
+    date_val: str, rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Bulk-upsert поминутных строк сна за date_val.
+
+    Args:
+        date_val: 'YYYY-MM-DD' (UTC) — соответствует date в minute_ts::date.
+        rows: каждый dict должен содержать 'minute_ts' (ISO timestamptz).
+              Остальные поля stage/movement/spo2/hrv/stress/body_battery/
+              respiration — nullable, whitelistируются.
+
+    Returns: список вставленных/обновлённых строк.
+
+    Удаляем старые строки за date_val перед insert — одна дата = один
+    канонический набор (аналогично upsert_food_log), чтобы при повторном
+    fetch со слегка другими данными не плодились дубли.
+    """
+    sb = get_client()
+    sb.table("garmin_sleep_minutes").delete().eq("date", str(date_val)).execute()
+    if not rows:
+        return []
+    out_rows: list[dict[str, Any]] = []
+    for r in rows:
+        minute_ts = r.get("minute_ts")
+        if not minute_ts:
+            continue
+        row: dict[str, Any] = {"date": str(date_val), "minute_ts": minute_ts}
+        for col in _GARMIN_SLEEP_MINUTES_COLS:
+            if col in r:
+                v = r[col]
+                if v is None:
+                    row[col] = None
+                elif col in ("spo2", "hrv", "stress", "body_battery"):
+                    row[col] = int(round(float(v)))
+                elif col == "movement":
+                    row[col] = round(float(v), 3)
+                elif col == "respiration":
+                    row[col] = round(float(v), 2)
+                else:
+                    row[col] = v
+        out_rows.append(row)
+    if not out_rows:
+        return []
+    result = sb.table("garmin_sleep_minutes").insert(out_rows).execute()
+    return result.data if hasattr(result, "data") else result
+
+
+def get_garmin_sleep_minutes(date_val: date | str) -> list[dict[str, Any]]:
+    """Все поминутные строки сна за date (UTC), отсортированы по minute_ts.
+
+    Используется renderer'ом для построения time-series по SpO2/HRV/BB
+    и hypnogram-полоски. Возвращает [] если таблицы нет (PGRST205) —
+    не валит весь бриф если миграция ещё не применена.
+    """
+    sb = get_client()
+    try:
+        result = (
+            sb.table("garmin_sleep_minutes")
+            .select("minute_ts,stage,movement,spo2,hrv,stress,body_battery,respiration")
+            .eq("date", str(date_val))
+            .order("minute_ts")
+            .execute()
+        )
+    except Exception as e:
+        msg = str(e)
+        if "PGRST205" in msg or "PGRST204" in msg or "does not exist" in msg:
+            return []
+        raise
+    data = result.data if hasattr(result, "data") else result
+    return data or []
 
 
 def upsert_food_log(brief_id: str, date_val: str, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:

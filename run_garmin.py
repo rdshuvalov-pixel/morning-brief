@@ -36,7 +36,11 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, "/root/morning_brief_v2")
 
-from db.client import upsert_brief, upsert_garmin_metrics  # noqa: E402
+from db.client import (  # noqa: E402
+    upsert_brief,
+    upsert_garmin_metrics,
+    upsert_garmin_sleep_minutes,
+)
 from providers.garmin import GarminProvider                 # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -149,9 +153,35 @@ async def run_for_date(target: date, provider: GarminProvider) -> int:
         return 3
     logger.info("Brief upserted: id=%s date=%s", brief_id, t_str)
 
+    # Поминутную развертку вынимаем ДО upsert агрегатов: она предназначена для
+    # garmin_sleep_minutes, и в payload garmin_metrics попадать не должна.
+    minute_rows = metrics.pop("sleep_minute_rows", []) or []
+    metrics.pop("sleep_minute_count", None)
+
     garmin_row = upsert_garmin_metrics(brief_id, t_str, metrics)
     logger.info("garmin_metrics upserted: id=%s body_battery=%s",
                 garmin_row.get("id"), garmin_row.get("body_battery"))
+
+    # Поминутная развертка сна — отдельная таблица garmin_sleep_minutes.
+    # Не критично для брифа если таблица ещё не создана (PGRST205) или
+    # если Garmin не вернул sleepMovement (например, для target=today
+    # без окна сна). Логируем и идём дальше.
+    if minute_rows:
+        try:
+            inserted = upsert_garmin_sleep_minutes(t_str, minute_rows)
+            logger.info(
+                "garmin_sleep_minutes upserted: %d rows for %s",
+                len(inserted), t_str,
+            )
+        except Exception as e:
+            logger.warning(
+                "garmin_sleep_minutes upsert failed for %s: %s — "
+                "if table does not exist, apply migration 009 first",
+                t_str, str(e)[:200],
+            )
+    else:
+        logger.info("no sleep_minute_rows for %s (skipping)", t_str)
+
     return 0
 
 
