@@ -133,7 +133,7 @@
       border-radius: 50%;
       background:
         radial-gradient(circle closest-side, #fffaf6 68%, transparent 69% 100%),
-        conic-gradient(var(--good) 0 356deg, rgba(45,155,125,0.14) 356deg 360deg);
+        conic-gradient(var(--amber) 0 274deg, rgba(211,138,44,0.14) 274deg 360deg);
       display: grid;
       place-items: center;
       text-align: center;
@@ -668,15 +668,15 @@
         
         <div class="hero-badge">12 September</div>
 
-        <h1>252 шага и тонна еды</h1>
-        <p class="lead">252 шага за вчера — это не прогулка, это вылазка к холодильнику. +1643 ккал сверху — тело в плюсе, но не в форме. Погода ясная, 29°,24 задачи ждут. Хватит сидеть.</p>
+        <h1>76 и минус двадцать три</h1>
+        <p class="lead">Батарейка 76 — проснулась заряженной, но −23 к вчерашнему. Сон 6ч 37м, score 75. HRV 61, пульс 49 — тело в работе, не в отпуске. Стресс 18, SpO2 94.</p>
       </div>
 
       
       <div class="battery">
         <div class="battery-ring">
           <div>
-            <strong>99</strong>
+            <strong>76</strong>
             <span>Battery</span>
           </div>
         </div>
@@ -687,24 +687,26 @@
     <div class="hero-grid">
       <div class="hero-stat">
         <div class="label">Сон</div>
-        <div class="value">—</div>
-        <div class="meta">Sleep score —</div>
+        <div class="value">6ч 37м</div>
+        <div class="meta">Sleep score 75</div>
       </div>
       <div class="hero-stat">
         <div class="label">HRV</div>
-        <div class="value">—</div>
+        <div class="value">61</div>
         <div class="meta">—</div>
       </div>
       <div class="hero-stat">
         <div class="label">Пульс</div>
-        <div class="value">—</div>
+        <div class="value">49</div>
         <div class="meta">Resting bpm</div>
       </div>
     </div>
 
     
+      <div class="block-opinion">Ресурс: BB=76, сон 6ч 37м (score 75), HRV 61 — бери главное до обеда, потом просядет.</div>
     
-      <p class="block-narrative">Без данных по батарейке и сну — Garmin не отдал цифры. Так что сегодня работаем вслепую по ресурсу: утром бери главное и не размазывайся, а к вечеру следи за собой сам — если начнёшь ловить туман в голове, значит пора на откат.</p>
+    
+      <p class="block-narrative">Battery 76 после 6ч 37м сна — рабочая база, минус 23 к вчера, но это не провал, просто день потяжелее. HRV 61, пульс 49, стресс 18 — тело в норме, просто ресурс ниже пика. Используй первую половину дня под главное, после обеда ресурс просядет ещё — планируй откат и лёгкие задачи на вторую половину.</p>
     
   </section>
 
@@ -717,7 +719,7 @@
           <div class="label">Ночь</div>
           <div class="title">Сон и восстановление</div>
         </div>
-        <div class="pill pill-muted">Night —</div>
+        <div class="pill pill-amber">Night Uneven</div>
       </div>
 
       <div class="split">
@@ -725,10 +727,10 @@
         <div class="soft">
           <div class="label">Sleep Stages</div>
           <div class="sleep-bar">
-            <div class="stage-deep"  style="width:35%;"></div>
-            <div class="stage-rem"   style="width:23%;"></div>
-            <div class="stage-light" style="width:42%;"></div>
-            <div class="stage-awake" style="width:0%;"></div>
+            <div class="stage-deep"  style="width:21%;"></div>
+            <div class="stage-rem"   style="width:22%;"></div>
+            <div class="stage-light" style="width:54%;"></div>
+            <div class="stage-awake" style="width:3%;"></div>
           </div>
           <div class="axis">
             <span>23:18</span>
@@ -736,9 +738,11 @@
             <span>07:00</span>
           </div>
           <div class="legend">
-            <span><i style="background:#8f67d8;"></i>Deep —</span>
-            <span><i style="background:#ff8e6f;"></i>REM —</span>
-            <span><i style="background:#ffb37e;"></i>Light —</span>
+            <span><i style="background:#8f67d8;"></i>Deep 1ч 23м</span>
+            <span><i style="background:#ff8e6f;"></i>REM 1ч 27м</span>
+            <span><i style="background:#ffb37e;"></i>Light 3ч 35м</span>
+            
+              <span><i style="background:rgba(34,27,51,0.18);"></i>Awake 0ч 12м</span>
             
           </div>
         </div>
@@ -748,7 +752,7 @@
           <div class="label">SpO2</div>
           <div class="value" style="font-size:30px;">94%</div>
           
-            <div class="meta" style="font-size:9px; color:var(--muted-2);">по данным 11 September</div>
+            <div class="meta">—</div>
           
           <div class="spark-wrap">
             <svg viewBox="0 0 120 52" width="100%" height="52" aria-label="HRV trend">
@@ -774,23 +778,23 @@
       <div class="metrics-2">
         <div class="metric-box">
           <div class="label">Body Battery · пик</div>
-          <div class="value">99</div>
+          <div class="value">76</div>
           
-            <div class="meta" style="font-size:10px; color:var(--muted-2);">по данным 11 September</div>
           
+            <div class="delta delta-rose">-23 vs вчера</div>
           
         </div>
 
         <div class="metric-box">
           <div class="label">Readiness</div>
-          <div class="value">—</div>
-          <div class="meta">—</div>
+          <div class="value">High</div>
+          <div class="meta">Лучшее окно утром</div>
         </div>
 
         <div class="metric-box">
           <div class="label">Stress <span style="font-size:9px; color:var(--muted-2);">(вчера)</span></div>
-          <div class="value">Low</div>
-          <div class="meta">Плавный старт без шума</div>
+          <div class="value">Med</div>
+          <div class="meta">Средний фон</div>
         </div>
 
         <div class="metric-box">
@@ -866,7 +870,7 @@
         <div class="block-opinion">2 встреч(и) сегодня. Между ними — фокус на главном.</div>
       
       
-        <p class="block-narrative">Две встречи, и обе с личным характером — музей для ребёнка в 11 и день рождения Алисы в Парке Поэтов в 14. Deep Work по факту не вставлен, значит весь фокус придётся вытаскивать в окнах между ними и после 15:00. День для людей, а не для задач — не превращай это в марафон, просто будь там, где надо быть.</p>
+        <p class="block-narrative">Две встречи, обе с характером: утром музей, после обеда день рождения в парке. Deep Work не вставлен — а значит окно свободно, бери его под главное до 11:00. День лёгкий по форме, но насыщенный по смыслу, не размазывайся.</p>
       
     </article>
 
@@ -936,15 +940,15 @@
 
       
       <div class="tasks-summary">
-        <div class="tasks-summary-title">Время закрывать задачи</div>
-        <p class="tasks-summary-text">Топ — «Вредные советы по продукту».24 задачи не сделаются сами. Солнце есть, время есть, excuses нет. Пиши статьи, пока голова свежая.</p>
+        <div class="tasks-summary-title">День есть — используй</div>
+        <p class="tasks-summary-text">24 задачи ждут. Топ — «Вредные советы по продукту», пара статей. Погода ясная, 29°. Шаги вчера 8 897, баланс −17 ккал — гуляй, не сиди.</p>
       </div>
 
       
         <div class="block-opinion">24 задач, из них 3 на p3 — закрой одну из них до обеда.</div>
       
       
-        <p class="block-narrative">252 символа, в лимите. Числа: 24 (задачи), 3 (p3), 4–5 (p4–p5) — все из зафиксированных, ничего не выдумано.</p>
+        <p class="block-narrative">Сегодня 24 задачи, из них 3 на p3 — и все три надо закрыть именно сегодня, иначе они превратятся в бесконечный хвост. Топ — «Вредные советы по продукту»: пара статей за день реальна, если не уходить в перфекционизм, а просто взять и написать. Остальное — p4 и ниже, оно подождёт; не дай ему украсть фокус с трёх главных.</p>
       
     </article>
     
@@ -956,23 +960,23 @@
           <div class="label">Тело</div>
           <div class="title">Движение и питание</div>
         </div>
-        <div class="pill pill-rose">Keep It Light</div>
+        <div class="pill pill-rose">On Track</div>
       </div>
 
       <div class="progress-group">
         <div class="progress-row">
           <div class="progress-head">
             <span>Шаги</span>
-            <span>252 / 10000</span>
+            <span>8 897 / 10000</span>
           </div>
-          <div class="track"><div class="fill fill-steps" style="width:3%;"></div></div>
+          <div class="track"><div class="fill fill-steps" style="width:89%;"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-head">
             <span>Потратил</span>
-            <span>673 ккал</span>
+            <span>2 333 ккал</span>
           </div>
-          <div class="track"><div class="fill fill-burn" style="width:23%;"></div></div>
+          <div class="track"><div class="fill fill-burn" style="width:78%;"></div></div>
         </div>
         <div class="progress-row">
           <div class="progress-head">
@@ -982,15 +986,15 @@
           <div class="track"><div class="fill fill-eat" style="width:78%;"></div></div>
         </div>
         
-          <div class="meta">Баланс +1643 ккал. Профицит — активнее подвигайся в течение дня.</div>
+          <div class="meta">Баланс −17 ккал. Неплохой день, чтобы не переусердствовать.</div>
         
       </div>
 
       
-        <div class="block-opinion">Вчера 252 шагов — мало. Сегодня добери хотя бы до 7к.</div>
+        <div class="block-opinion">Вчера 8897 шагов — нормально, но без запаса. Пройдись лишний раз.</div>
       
       
-        <p class="block-narrative">252 шага за вчера — это не движение, это ты встал с дивана и вернулся. Плюс 1643 ккал в балансе при съеденных 2316 и потраченных 673 — тело в режиме накопления, а не жизни. Сегодняшняя цель 7000 — это не «пробежка марафонца», это просто встать и пойти. Разгонись сам, потом скажешь спасибо.</p>
+        <p class="block-narrative">8897 шагов вчера — нормальный рабочий день, не выходной, не лежебока. Баланс −17 ккал — практически ноль, тело не в дефиците. Но 7000 как дневная норма — не потолок, а порог: сегодня стоит пройти 8–9к и закрыть вопрос движением без натяга.</p>
       
     </article>
 
@@ -1040,7 +1044,7 @@
         <div class="block-opinion">Днём 29.1°, ясно — окно для дел на улице.</div>
       
       
-        <p class="block-narrative">Утро ясное, +27.5°, днём прогрев до +29.1° — это на 3° теплее вчерашнего, так что лёгкая одежда и вода обязательны. К вечеру чуть спадёт до +26.9°, ветра почти нет (2–4 м/с), окно для дел на улице — весь день. Если был план «дойти пешком до встречи» или поработать на террасе — самое время.</p>
+        <p class="block-narrative">Утро ясное, 27.5° и ветер 2.1 м/с — старт мягкий, бери его. Днём воздух прогреется до 29.1° (на 3° теплее вчера), к вечеру 26.9° при ветре 4.2 м/с — окно для дел на улице с утра до заката. Хочешь дойти пешком до встречи или выскочить за кофе — сейчас идеальный момент.</p>
       
     </article>
 
